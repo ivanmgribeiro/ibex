@@ -124,6 +124,7 @@ module ibex_core #(
   pc_sel_e     pc_mux_id;              // Mux selector for next PC
   exc_pc_sel_e exc_pc_mux_id;          // Mux selector for exception PC
   exc_cause_e  exc_cause;              // Exception cause
+  logic        csr_mtvec_init;
 
   logic        lsu_load_err;
   logic        lsu_store_err;
@@ -325,6 +326,7 @@ module ibex_core #(
       .pc_mux_i                 ( pc_mux_id              ),
       .exc_pc_mux_i             ( exc_pc_mux_id          ),
       .exc_cause                ( exc_cause              ),
+      .csr_mtvec_init_o         ( csr_mtvec_init         ),
 
       // jump targets
       .jump_target_ex_i         ( jump_target_ex         ),
@@ -332,7 +334,7 @@ module ibex_core #(
       // CSRs
       .csr_mepc_i               ( csr_mepc               ), // exception return address
       .csr_depc_i               ( csr_depc               ), // debug return address
-      .csr_mtvec_o              ( csr_mtvec              ), // trap-vector base address
+      .csr_mtvec_i              ( csr_mtvec              ), // trap-vector base address
 
       // pipeline stalls
       .id_in_ready_i            ( id_in_ready            ),
@@ -561,6 +563,10 @@ module ibex_core #(
       .core_id_i               ( core_id_i              ),
       .cluster_id_i            ( cluster_id_i           ),
 
+      // mtvec initialization
+      .boot_addr_i             ( boot_addr_i            ),
+      .csr_mtvec_init_i        ( csr_mtvec_init         ),
+
       // Interface to CSRs (SRAM like)
       .csr_access_i            ( csr_access             ),
       .csr_addr_i              ( csr_addr               ),
@@ -595,7 +601,7 @@ module ibex_core #(
       .csr_save_id_i           ( csr_save_id            ),
       .csr_restore_mret_i      ( csr_restore_mret_id    ),
       .csr_save_cause_i        ( csr_save_cause         ),
-      .csr_mtvec_i             ( csr_mtvec              ),
+      .csr_mtvec_o             ( csr_mtvec              ),
       .csr_mcause_i            ( exc_cause              ),
       .csr_mtval_i             ( csr_mtval              ),
       .illegal_csr_insn_o      ( illegal_csr_insn_id    ),
