@@ -60,7 +60,6 @@ module ibex_if_stage #(
     // control signals
     input  logic                  instr_valid_clear_i,      // clear instr valid bit in IF-ID
     input  logic                  pc_set_i,                 // set the PC to a new value
-    output logic [31:0]           csr_mtvec_i,              // base PC to jump to on exception
     input  ibex_pkg::pc_sel_e     pc_mux_i,                 // selector for PC multiplexer
     input  ibex_pkg::exc_pc_sel_e exc_pc_mux_i,             // selects ISR address
     input  ibex_pkg::exc_cause_e  exc_cause,                // selects ISR address for
@@ -73,6 +72,7 @@ module ibex_if_stage #(
                                                             // the interrupt/exception
     input  logic [31:0]           csr_depc_i,               // PC to restore after handling
                                                             // the debug request
+    input  logic [31:0]           csr_mtvec_i,              // base PC to jump to on exception
     output logic                  csr_mtvec_init_o,         // tell CS regfile to init mtvec
 
     // pipeline stall
