@@ -39,9 +39,10 @@ module ibex_cs_registers #(
     input  logic  [3:0]          core_id_i,
     input  logic  [5:0]          cluster_id_i,
 
-    // mtvec initialization
-    input  logic [31:0]          boot_addr_i,
+    // mtvec
+    output logic [31:0]          csr_mtvec_o,
     input  logic                 csr_mtvec_init_i,
+    input  logic [31:0]          boot_addr_i,
 
     // Interface to registers (SRAM like)
     input  logic                 csr_access_i,
@@ -62,7 +63,6 @@ module ibex_cs_registers #(
     output logic [14:0]          csr_mfip_o,             // fast interrupt pending
     output logic                 csr_mstatus_mie_o,
     output logic [31:0]          csr_mepc_o,
-    output logic [31:0]          csr_mtvec_o,
 
     // debug
     input  ibex_pkg::dbg_cause_e debug_cause_i,
@@ -195,6 +195,10 @@ module ibex_cs_registers #(
   logic        illegal_csr;
   logic        illegal_csr_priv;
   logic        illegal_csr_write;
+
+  logic [7:0]  unused_boot_addr;
+
+  assign unused_boot_addr = boot_addr_i[7:0];
 
   /////////////
   // CSR reg //
@@ -371,7 +375,7 @@ module ibex_cs_registers #(
 
       // mtvec
       // mtvec.MODE set to vectored
-      // we also want mtvec to be 256-byte aligned, so we discard the bottom 8 bits of the input
+      // mtvec.BASE must be 256-byte aligned
       CSR_MTVEC: if (csr_we_int) mtvec_d = {csr_wdata_int[31:8], 6'b0, 2'b01};
 
       CSR_DCSR: begin
@@ -528,13 +532,13 @@ module ibex_cs_registers #(
   assign csr_rdata_o = csr_rdata_int;
 
   // directly output some registers
-  assign csr_msip_o = mip.software;
-  assign csr_mtip_o = mip.timer;
-  assign csr_meip_o = mip.external;
-  assign csr_mfip_o = mip.fast;
+  assign csr_msip_o  = mip.software;
+  assign csr_mtip_o  = mip.timer;
+  assign csr_meip_o  = mip.external;
+  assign csr_mfip_o  = mip.fast;
 
-  assign csr_mepc_o = mepc_q;
-  assign csr_depc_o = depc_q;
+  assign csr_mepc_o  = mepc_q;
+  assign csr_depc_o  = depc_q;
   assign csr_mtvec_o = mtvec_q;
 
   assign csr_mstatus_mie_o   = mstatus_q.mie;
