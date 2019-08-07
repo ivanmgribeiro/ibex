@@ -326,7 +326,7 @@ module ibex_cs_registers #(
     mepc_d       = mepc_q;
     mcause_d     = mcause_q;
     mtval_d      = mtval_q;
-    mtvec_d      = csr_mtvec_init_i ? boot_addr_i : mtvec_q;
+    mtvec_d      = csr_mtvec_init_i ? {boot_addr_i[31:8], 6'b0, 2'b01} : mtvec_q;
     dcsr_d       = dcsr_q;
     depc_d       = depc_q;
     dscratch0_d  = dscratch0_q;
