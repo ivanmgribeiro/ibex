@@ -62,6 +62,7 @@ double sc_time_stamp() {
 
 RVFI_DII_Execution_Packet readRVFI(Vibex_core_avalon *top, bool signExtend);
 void sendReturnTrace(std::vector<RVFI_DII_Execution_Packet> &returnTrace, unsigned long long socket);
+int byteEnableToSize(int byteEnable);
 
 // This will open a socket on the hostname and port provided
 // It will then try to receive RVFI-DII packets and put the instructions
@@ -238,12 +239,13 @@ int main(int argc, char** argv, char** env) {
             // perform main memory read
             if (top->avm_main_read) {
                 // get the address so we can manipulate it
-                int address = top->avm_main_address;
+                long address = top->avm_main_address;
+                int size = byteEnableToSize(top->avm_main_byteenable);
 
                 // TestRIG specifies that byte addresses must be between 0x80000000 and 0x80008000
                 // our avalon wrapper divides the byte address by 4 in order to get a word address
                 // so we need to check for addresses between 0x20003fff and 0x20000000
-                if (address >= (MEM_BASE_BYTES + MEM_SIZE_BYTES) || address < MEM_BASE_BYTES) {
+                if (address + size >= (MEM_BASE_BYTES + MEM_SIZE_BYTES) || address < MEM_BASE_BYTES) {
                     // the core tried to read from an address outside the specified range
                     // set the signals appropriately
                     top->avm_main_response = 0b11;
@@ -281,13 +283,14 @@ int main(int argc, char** argv, char** env) {
             // perform main memory writes
             if (top->avm_main_write) {
                 // get the address so we can manipulate it
-                int address = top->avm_main_address;
+                long address = top->avm_main_address;
+                int size = byteEnableToSize(top->avm_main_byteenable);
 
 
                 // TestRIG specifies that byte addresses must be between 0x80000000 and 0x80008000
                 // our avalon wrapper divides the byte address by 4 in order to get a word address
                 // so we need to check for addresses between 0x20003fff and 0x20000000
-                if (address >= (MEM_BASE_BYTES + MEM_SIZE_BYTES) || address < MEM_BASE_BYTES) {
+                if (address + size >= (MEM_BASE_BYTES + MEM_SIZE_BYTES) || address < MEM_BASE_BYTES) {
                     // the core tried to write to an address outside the specified range
                     // set the signals appropriately
                     top->avm_main_response = 0b11;
@@ -297,7 +300,7 @@ int main(int argc, char** argv, char** env) {
                     // the core tried to read from an address within the specified range
 
                     // translate the address so it is between 0x0 and 0x00003fff
-                    address = address & 0x01ffffff;
+                    address = address - MEM_BASE_BYTES;
 
                     // get the data from the core
                     uint64_t data = top->avm_main_writedata;
@@ -422,5 +425,15 @@ RVFI_DII_Execution_Packet readRVFI(Vibex_core_avalon *top, bool signExtend) {
 }
 
 
-
-
+int byteEnableToSize(int byteEnable) {
+    std::cout << "byte enable: " << std::hex << byteEnable << std::endl;
+    int counter = 0;
+    for (int i = 0; i < 32; i++) {
+        if (byteEnable & 0x1) {
+            counter++;
+        }
+        byteEnable >>= 1;
+    }
+    std::cout << "counter: " << std::hex << counter << std::endl;
+    return counter;
+}
