@@ -139,6 +139,8 @@ module ibex_core import ibex_pkg::*; #(
   output logic                         rvfi_ext_nmi,
   output logic                         rvfi_ext_debug_req,
   output logic [63:0]                  rvfi_ext_mcycle,
+  output logic                         perf_jump_o,
+  output logic                         perf_tbranch_o,
 `endif
 
   // CPU Control Signals
@@ -1602,6 +1604,8 @@ module ibex_core import ibex_pkg::*; #(
     end
   end
 
+  assign perf_jump_o = perf_jump;
+  assign perf_tbranch_o = perf_tbranch;
 `else
   logic unused_instr_new_id, unused_instr_id_done, unused_instr_done_wb;
   assign unused_instr_id_done = instr_id_done;
