@@ -228,6 +228,15 @@ int main(int argc, char** argv, char** env) {
                               << " out_count: " << out_count
                               << std::endl;
                 }
+            } else if (top->perf_jump_o || top->perf_tbranch_o) {
+                // there was a branch or jump; roll back as above
+                in_count = out_count + 1;
+                if (verbosity > 0) {
+                    std::cout << "Encountered branch/jump"
+                              << " in_count: " << in_count
+                              << " out_count: " << out_count
+                              << std::endl;
+                }
             }
 
             // A response is always issued on the cycle after it is granted
