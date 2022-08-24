@@ -8,10 +8,16 @@ filesets:
     depend:
       - lowrisc:ibex:sim_shared
       - lowrisc:ibex:ibex_top
+      - ucam:utils:socketpacketutils
     files:
-      - ../../vendor/SocketPacketUtils/socket_packet_utils.c: { file_type: cSource }
       - dii_toplevel_sim.cpp: { file_type: cppSource }
       - ibex_top_sram.sv: { file_type: systemVerilogSource }
+
+parameters:
+  RVFI:
+    datatype: bool
+    paramtype: vlogdefine
+    default: true
 
 # TODO
 # parameters:
@@ -22,6 +28,8 @@ targets:
       - files_sim
     toplevel: ibex_top_sram
     default_tool: verilator
+    parameters:
+      - RVFI=true
     tools:
       verilator:
         mode: cc
@@ -35,7 +43,7 @@ targets:
           - '--trace-max-array 1024'
           - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=ibex_top_sram -g"'
           - '-LDFLAGS "-pthread -lutil -lelf"'
-	  # For now, disable this
+          # For now, disable this
           #- "-Wall"
           - "-Wwarn-IMPERFECTSCH"
           # RAM primitives wider than 64bit (required for ECC) fail to build in
