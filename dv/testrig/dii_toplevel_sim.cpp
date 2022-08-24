@@ -214,6 +214,21 @@ int main(int argc, char** argv, char** env) {
             // TODO need to track whether an instruction that was input was
             // actually executed or whether it was skipped (branch pred miss,
             // exception, etc)
+            // For now, experiment and see if these static instruction offsets
+            // work
+            if (top->rvfi_valid && top->rvfi_trap) {
+                // there was an exception; roll back instruction counter
+                // not sure what to roll back to yet
+                // for now, just roll back to the latest instruction that
+                // was committed in RVFI
+                in_count = out_count;
+                if (verbosity > 0) {
+                    std::cout << "Encountered exception"
+                              << " in_count: " << in_count
+                              << " out_count: " << out_count
+                              << std::endl;
+                }
+            }
 
             // A response is always issued on the cycle after it is granted
             // Since we haven't updated instr_gnt_i yet, it has its value from
