@@ -143,19 +143,25 @@ module ibex_top_sram import ibex_pkg::*; #(
   logic [31:0] addr_base [1];
   logic [31:0] addr_mask [1];
   assign addr_base[0] = 32'h8000_0000;
-  assign addr_mask[0] = 32'h0000_FFFF;
+  assign addr_mask[0] = 32'h007F_FFFF;
 
-  logic core_err_or;
+  // whether the memory access is in bounds
+  logic access_err_d, access_err_q;
+
+  logic core_err_or, ram_we_and;
+
+  assign access_err_d = core_req[0]
+                        && (core_addr[0] < addr_base[0]
+                            || core_addr[0] > addr_base[0] + addr_mask[0]);
+
   // keep track of last cycle's request so we can use it for error setting
   logic [31:0] core_addr_q;
   always @(posedge clk_i) begin
-    core_addr_q <= core_addr[0];
+    access_err_q <= access_err_d;
   end
   // if the core requests memory out of range, set error
-  assign core_err_or = core_err[0]
-                       || (ram_rvalid[0]
-                           && (core_addr_q < addr_base[0]
-                               || core_addr_q > addr_base[0] + addr_mask[0]));
+  assign core_err_or = core_err[0] || access_err_q;
+  assign ram_we_and = ram_we[0] && !access_err_d;
 
   bus #(
     .NrDevices    ( 1),
@@ -308,7 +314,7 @@ module ibex_top_sram import ibex_pkg::*; #(
       .rst_ni      (rst_ni),
 
       .req_i     (ram_req[0]   ),
-      .we_i      (ram_we[0]    ),
+      .we_i      (ram_we_and   ),
       .be_i      (ram_be[0]    ),
       .addr_i    (ram_addr[0]  ),
       .wdata_i   (ram_wdata[0] ),
