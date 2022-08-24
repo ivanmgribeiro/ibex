@@ -100,6 +100,8 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   // jump and branch target
   input  logic [31:0]                 branch_target_ex_i,       // branch/jump target address
+  output logic [31:0]                 pc_set_target_o,          // when PC is set, this will be the
+                                                                // PC that will be jumped to
 
   // CSRs
   input  logic [31:0]                 csr_mepc_i,               // PC to restore after handling
@@ -217,6 +219,8 @@ module ibex_if_stage import ibex_pkg::*; #(
       default: fetch_addr_n = boot_addr_i;
     endcase
   end
+
+  assign pc_set_target_o = fetch_addr_n;
 
   // tell CS register file to initialize mtvec on boot
   assign csr_mtvec_init_o = (pc_mux_i == PC_BOOT) & pc_set_i;
