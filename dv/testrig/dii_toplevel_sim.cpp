@@ -48,30 +48,32 @@ double sc_time_stamp() {
     return main_time;
 }
 
-// Barebones main function which just loops the core
 int main(int argc, char** argv, char** env) {
+    if (argc != 3) {
+        std::cerr << "Please provide 2 argument (port number and verbosity)" << std::endl;
+        exit(-1);
+    }
 
     Verilated::commandArgs(argc, argv);
     Vibex_top_sram * top = new Vibex_top_sram;
 
-    top->eval();
+    int verbosity = std::atoi(argv[2]);
 
-    top->eval();
+    // initialize the socket with the input parameters
+    unsigned long long socket = serv_socket_create_nameless(std::atoi(argv[1]));
+    serv_socket_init(socket);
 
     // TODO set up initial boot address
-    //top->boot_addr_i = 0x80000000;
     top->clk_i = 1;
     top->rst_ni = 1;
     top->test_en_i = 1;
     top->fetch_enable_i = 1;
     top-> eval();
 
+    // TestRIG expects cores to start fetching from address 0x80000000
+    top->boot_addr_i = 0x80000000;
+
     // set up instruction (NOP)
-    top->instr_gnt_i = 1;
-    top->instr_rvalid_i = 1;
-    top->instr_rdata_i = 0x00000013;
-    top->instr_rdata_intg_i = 0;
-    top->instr_err_i = 0;
 
     // set up tracing
     #if VM_TRACE
@@ -81,13 +83,199 @@ int main(int argc, char** argv, char** env) {
     trace_obj->open("vlt_d.vcd");
     #endif
 
+    int received = 0; // number of instructions received on the socket
+    int in_count = 0; // number of instructions that have been read by the core
+    int out_count = 0;// number of traces that have been produced by the core
+
+    // socket receive buffer. When we try to receive a packet, we will actually
+    // receive 1 more byte which will tell us whether we actually received
+    // a packet or not
+    char recbuf[sizeof(RVFI_DII_Instruction_Packet) + 1] = {0};
+
+    // the instructions to execute
+    std::vector<RVFI_DII_Instruction_Packet> instructions;
+
+    // the traces to be sent to TestRIG, which are generated from the RVFI
+    // signals that the core provides
+    std::vector<RVFI_DII_Execution_Packet> returntrace;
+
+    int instr_addr_prev = 0;
+
+    // TODO loop condition
     while (1) {
-        main_time++;
-        top->clk_i = !top->clk_i;
-        top->eval();
-        trace_obj->dump(main_time);
-        std::cout << "instr req: " << std::hex << top->instr_req_o << std::endl;
-        std::cout << "instr addr: " << std::hex << top->instr_addr_o << std::endl;
+        // If we have not received any packets, or the last packet is not a reset command, try to receive
+        // packets until we get a reset command
+        if (received == 0 || instructions[received-1].dii_cmd) {
+            // attempt to receive packets until we receive an EndOfTrace packet
+            RVFI_DII_Instruction_Packet *packet;
+            do {
+                serv_socket_getN((unsigned int *) recbuf, socket, sizeof(RVFI_DII_Instruction_Packet));
+
+                // the last byte received will be 0 if our attempt to receive a packet was successful
+                if (recbuf[sizeof(RVFI_DII_Instruction_Packet)] == 0) {
+                    packet = (RVFI_DII_Instruction_Packet *) recbuf;
+                    instructions.push_back(*packet);
+                    received++;
+                    if (verbosity > 0) {
+                        std::cout << "received new instruction; new count: " << received << std::endl;
+                        if (packet->dii_cmd) {
+                            std::cout << "    cmd: " << std::hex << (int) packet->dii_cmd << " instruction: " << packet->dii_insn << std::endl;
+                        } else {
+                            std::cout << "    reset command" << std::endl;
+                        }
+                    }
+                } else {
+                    break;
+                }
+                // sleep for 0.1ms before trying to receive another instruction
+                usleep(100);
+            } while (packet->dii_cmd != 0);
+        }
+
+        // only want to clock the core if we can push instructions in
+        // or we're waiting for some output
+        if (received > 0                // we have instructions to feed into the core
+            && (in_count == 0           // we have not yet inserted an instruction
+                || in_count > out_count // there is an instruction in the pipeline
+                || received > in_count) // there are instructions that we can put in the pipeline
+           ) {
+            // When there is a valid RVFI signal, read the RVFI data, add it to
+            // the end of the trace and increment out_count
+            if (in_count - out_count > 0 // there is an instruction in the pipeline
+                && top->rvfi_valid       // there is a valid RVFI packet
+               ) {
+                RVFI_DII_Execution_Packet execpacket = readRVFI(top, false);
+                returntrace.push_back(execpacket);
+                // temporarily send the return trace every time there is a
+                // valid RVFI trace to aid debugging
+                // TODO remove this
+                sendReturnTrace(returntrace, socket);
+
+                out_count++;
+                if (verbosity > 0) {
+                    std::cout << "rvfi trace received;"
+                              << " instruction: " << std::hex << execpacket.rvfi_insn
+                              << " out_count: " << std::dec << out_count
+                              << std::endl;
+                }
+            }
+
+
+            // Reset when necessary
+            // We reset when the pipeline is empty, and the last executed
+            // instruction was the last in the trace, and the next command is
+            // a reset command
+            if (out_count == in_count // there are no instructions in the pipeline
+                && in_count == received - 1 // this is the last instruction in the trace
+                && !instructions[in_count].dii_cmd // this is a reset command
+               ) {
+                if (verbosity > 0) {
+                    std::cout << "Executing reset" << std::endl;
+                }
+
+                // Set the reset signal and clock the core a few times
+                // Also record traces
+                top->rst_ni = 0;
+                for (int i = 0; i < 10; i++) {
+                    top->clk_i = !top->clk_i;
+                    top->eval();
+                    main_time++;
+                    #if VM_TRACE
+                    trace_obj->dump(main_time);
+                    trace_obj->flush();
+                    #endif
+                }
+                top->rst_ni = 1;
+
+                // The returned trace needs a packet at the end with
+                // rvfi_halt set to 1
+                RVFI_DII_Execution_Packet rstpacket = {
+                    .rvfi_halt = 1
+                };
+                returntrace.push_back(rstpacket);
+                sendReturnTrace(returntrace, socket);
+
+                // Reset program state
+                instructions.clear();
+                in_count = 0;
+                out_count = 0;
+                received = 0;
+
+                // Reset core inputs
+                top->instr_rdata_i = 0;
+                top->instr_rvalid_i = 0;
+                top->instr_gnt_i = 0;
+                top->instr_err_i = 0;
+                top->boot_addr_i = 0x80000000;
+
+                continue;
+            }
+
+            // TODO need to track whether an instruction that was input was
+            // actually executed or whether it was skipped (branch pred miss,
+            // exception, etc)
+
+            // A response is always issued on the cycle after it is granted
+            // Since we haven't updated instr_gnt_i yet, it has its value from
+            // the previous cycle
+            top->instr_rvalid_i = top->instr_gnt_i;
+
+            // If there was a gnt_i signal last cycle, then provide an
+            // instruction
+            if (top->instr_gnt_i) {
+                // TODO handle requests out of bounds
+                if (1) {
+                //if (instr_addr_prev >= 0x80000000 && instr_addr_prev < 0x80010000) {
+                    // address is in range
+                    top->instr_rdata_i = instructions[in_count].dii_insn;
+                    top->instr_err_i = 0;
+                    top->boot_addr_i = 0x00000000;
+                    in_count++;
+                    if (verbosity > 0) {
+                        std::cout << "inserting instruction; in_count: " << in_count << std::endl;
+                        std::cout << "    instruction: " << std::hex << top->instr_rdata_i << std::endl;
+                    }
+                } else {
+                    // address is not in range
+                    top->instr_err_i = 1;
+                    if (verbosity > 0) {
+                        std::cout << "instruction request out of range; in_count: " << in_count << std::endl;
+                        std::cout << "    address: " << std::hex << instr_addr_prev << std::endl;
+                    }
+                }
+            }
+
+            instr_addr_prev = top->instr_addr_o;
+
+            // Clock the core and trace signals
+            top->clk_i = 1;
+            top->eval();
+            // instr_gnt_i can be high in the same cycle that instr_req_o goes
+            // high, so set it to follow instr_req_o here and evaluate again
+            // so that combinational logic that depends on it gets updated
+            top->instr_gnt_i = top->instr_req_o
+                               && received > in_count
+                               && instructions[in_count].dii_cmd;
+            top->eval();
+            main_time++;
+
+            // tracing
+            #if VM_TRACE
+            trace_obj->dump(main_time);
+            //trace_obj->flush();
+            #endif
+
+
+            top->clk_i = 0;
+            top->eval();
+            main_time++;
+
+            // tracing
+            #if VM_TRACE
+            trace_obj->dump(main_time);
+            //trace_obj->flush();
+            #endif
+        }
     }
 
     std::cout << "finished" << std::endl << std::flush;
