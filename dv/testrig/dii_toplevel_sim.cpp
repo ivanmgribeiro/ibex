@@ -48,6 +48,9 @@ double sc_time_stamp() {
     return main_time;
 }
 
+const int memory_base = 0x80000000;
+const int memory_size =   0x800000;
+
 int main(int argc, char** argv, char** env) {
     if (argc != 3) {
         std::cerr << "Please provide 2 argument (port number and verbosity)" << std::endl;
@@ -72,8 +75,6 @@ int main(int argc, char** argv, char** env) {
 
     // TestRIG expects cores to start fetching from address 0x80000000
     top->boot_addr_i = 0x80000000;
-
-    // set up instruction (NOP)
 
     // set up tracing
     #if VM_TRACE
@@ -100,6 +101,15 @@ int main(int argc, char** argv, char** env) {
     std::vector<RVFI_DII_Execution_Packet> returntrace;
 
     int instr_addr_prev = 0;
+    int data_addr_prev = 0;
+    int data_be_prev = 0;
+    int data_we_prev = 0;
+    int data_wdata_prev = 0;
+
+    uint8_t *memory = (uint8_t *) malloc(memory_size);
+    if (!memory) {
+        std::cout << "malloc didn't work" << std::endl;
+    }
 
     // TODO loop condition
     while (1) {
@@ -208,6 +218,11 @@ int main(int argc, char** argv, char** env) {
                 top->instr_err_i = 0;
                 top->boot_addr_i = 0x80000000;
 
+                // Reset memory
+                for (int i = 0; i < memory_size; i++) {
+                    memory[i] = 0;
+                }
+
                 continue;
             }
 
@@ -269,7 +284,58 @@ int main(int argc, char** argv, char** env) {
                 }
             }
 
-            instr_addr_prev = top->instr_addr_o;
+            // handle memory requests
+            // if there was a data_gnt_i signal last cycle, then execute the
+            // memory access
+            top->data_rvalid_i = top->data_gnt_i;
+            if (top->data_gnt_i) {
+                bool addr_out_of_range = data_addr_prev < memory_base
+                                         || data_addr_prev >= memory_base + memory_size;
+                int int_mem_addr = data_addr_prev - memory_base;
+                if (addr_out_of_range) {
+                    top->data_err_i = 1;
+                    if (verbosity > 0) {
+                        std::cout << "memory read out of range" << std::endl;
+                        std::cout << "addr: " << std::hex << data_addr_prev << std::endl;
+                    }
+                } else {
+                    top->data_err_i = 0;
+                    if (data_we_prev) {
+                        // write
+                        for (int i = 0; i < 4; i++) {
+                            if ((data_be_prev >> i) & 1) {
+                                memory[int_mem_addr + i] = (uint8_t) (data_wdata_prev >> (i*8));
+                            }
+                        }
+                        if (verbosity > 0) {
+                            std::cout << "store addr: " << std::hex << data_addr_prev
+                                      << " memory values:"
+                                      << " " << std::hex << (int) memory[int_mem_addr]
+                                      << " " << std::hex << (int) memory[int_mem_addr + 1]
+                                      << " " << std::hex << (int) memory[int_mem_addr + 2]
+                                      << " " << std::hex << (int) memory[int_mem_addr + 3]
+                                      << std::endl;
+                        }
+                    } else {
+                        // read
+                        // ignore byte-enable for now
+                        uint32_t val = 0;
+                        for (int i = 0; i < 4; i++) {
+                            val |= ((uint32_t) memory[int_mem_addr + i]) << (8*i);
+                        }
+                        //uint32_t val = memory[int_mem_addr]
+                        //             | memory[int_mem_addr+1] << 8
+                        //             | memory[int_mem_addr+2] << 16
+                        //             | memory[int_mem_addr+3] << 24;
+                        if (verbosity > 0) {
+                            std::cout << "read addr: " << std::hex << data_addr_prev
+                                      << " read value: " << std::hex << val << std::endl;
+                        }
+                        top->data_rdata_i = val;
+                    }
+                }
+            }
+
 
             // Clock the core and trace signals
             top->clk_i = 1;
@@ -277,9 +343,29 @@ int main(int argc, char** argv, char** env) {
             // instr_gnt_i can be high in the same cycle that instr_req_o goes
             // high, so set it to follow instr_req_o here and evaluate again
             // so that combinational logic that depends on it gets updated
-            top->instr_gnt_i = top->instr_req_o
-                               && received > in_count
-                               && instructions[in_count].dii_cmd;
+            top->instr_gnt_i = top->instr_req_o;
+                               //&& received > in_count;
+                               //&& instructions[in_count].dii_cmd;
+            // we can always service memory requests
+            top->data_gnt_i = top->data_req_o;
+            if (verbosity > 0 && top->data_gnt_i) {
+                std::cout << "setting data_gnt_i" << std::endl;
+                std::cout << "addr: " << std::hex << top->data_addr_o << std::endl;
+            }
+
+            if (top->data_req_o) {
+                data_addr_prev = top->data_addr_o;
+                data_wdata_prev = top->data_wdata_o;
+                data_be_prev = top->data_be_o;
+                data_we_prev = top->data_we_o;
+                if (verbosity > 0) {
+                    std::cout << "data_addr_prev: " << std::hex << data_addr_prev << std::endl;
+                }
+            }
+            if (top->instr_req_o) {
+                instr_addr_prev = top->instr_addr_o;
+            }
+
             top->eval();
             main_time++;
 
