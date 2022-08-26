@@ -334,9 +334,16 @@ int main(int argc, char** argv, char** env) {
             }
 
 
-            // Clock the core and trace signals
-            top->clk_i = 1;
             top->eval();
+            main_time++;
+            // tracing
+            #if VM_TRACE
+            if (verbosity > 2) {
+                trace_obj->dump(main_time);
+                trace_obj->flush();
+            }
+            #endif
+
             // instr_gnt_i can be high in the same cycle that instr_req_o goes
             // high, so set it to follow instr_req_o here and evaluate again
             // so that combinational logic that depends on it gets updated
@@ -368,19 +375,36 @@ int main(int argc, char** argv, char** env) {
 
             // tracing
             #if VM_TRACE
-            trace_obj->dump(main_time);
-            //trace_obj->flush();
+            if (verbosity > 2) {
+                trace_obj->dump(main_time);
+                trace_obj->flush();
+            }
             #endif
 
-
+            // Clock the core and trace signals
             top->clk_i = 0;
             top->eval();
             main_time++;
 
             // tracing
             #if VM_TRACE
-            trace_obj->dump(main_time);
-            //trace_obj->flush();
+            if (verbosity > 2) {
+                trace_obj->dump(main_time);
+                trace_obj->flush();
+            }
+            #endif
+
+
+            top->clk_i = 1;
+            top->eval();
+            main_time++;
+
+            // tracing
+            #if VM_TRACE
+            if (verbosity > 2) {
+                trace_obj->dump(main_time);
+                trace_obj->flush();
+            }
             #endif
         }
     }
