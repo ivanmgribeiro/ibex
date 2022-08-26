@@ -150,9 +150,7 @@ int main(int argc, char** argv, char** env) {
            ) {
             // When there is a valid RVFI signal, read the RVFI data, add it to
             // the end of the trace and increment out_count
-            if (in_count - out_count > 0 // there is an instruction in the pipeline
-                && top->rvfi_valid       // there is a valid RVFI packet
-               ) {
+            if (top->rvfi_valid) {
                 RVFI_DII_Execution_Packet execpacket = readRVFI(top, false);
                 returntrace.push_back(execpacket);
                 // temporarily send the return trace every time there is a
