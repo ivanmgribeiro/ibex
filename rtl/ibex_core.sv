@@ -139,6 +139,7 @@ module ibex_core import ibex_pkg::*; #(
   output logic                         rvfi_ext_nmi,
   output logic                         rvfi_ext_debug_req,
   output logic [63:0]                  rvfi_ext_mcycle,
+  output logic                         perf_xret_o,
   output logic                         perf_jump_o,
   output logic                         perf_tbranch_o,
 `endif
@@ -350,6 +351,7 @@ module ibex_core import ibex_pkg::*; #(
   logic        perf_dside_wait;
   logic        perf_mul_wait;
   logic        perf_div_wait;
+  logic        perf_xret;
   logic        perf_jump;
   logic        perf_branch;
   logic        perf_tbranch;
@@ -642,6 +644,7 @@ module ibex_core import ibex_pkg::*; #(
     .outstanding_store_wb_i(outstanding_store_wb),
 
     // Performance Counters
+    .perf_xret_o      (perf_xret),
     .perf_jump_o      (perf_jump),
     .perf_branch_o    (perf_branch),
     .perf_tbranch_o   (perf_tbranch),
@@ -1604,6 +1607,7 @@ module ibex_core import ibex_pkg::*; #(
     end
   end
 
+  assign perf_xret_o = perf_xret;
   assign perf_jump_o = perf_jump;
   assign perf_tbranch_o = perf_tbranch;
 `else

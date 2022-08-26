@@ -426,6 +426,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     .rvfi_ext_nmi       (),
     .rvfi_ext_debug_req (),
     .rvfi_ext_mcycle    (),
+    .perf_xret_o        (),
     .perf_jump_o        (),
     .perf_tbranch_o     (),
 `endif
