@@ -78,10 +78,12 @@ int main(int argc, char** argv, char** env) {
 
     // set up tracing
     #if VM_TRACE
-    Verilated::traceEverOn(true);
     VerilatedFstC* trace_obj = new VerilatedFstC;
-    top->trace(trace_obj, 99);
-    trace_obj->open("vlt_d.vcd");
+    if (verbosity > 2) {
+        Verilated::traceEverOn(true);
+        top->trace(trace_obj, 99);
+        trace_obj->open("vlt_d.vcd");
+    }
     #endif
 
     int received = 0; // number of instructions received on the socket
@@ -127,7 +129,7 @@ int main(int argc, char** argv, char** env) {
                     instructions.push_back(*packet);
                     received++;
                     if (verbosity > 0) {
-                        std::cout << "received new instruction; new count: " << received << std::endl;
+                        std::cout << "received new instruction; new count: " << std::dec << received << std::endl;
                         if (packet->dii_cmd) {
                             std::cout << "    cmd: " << std::hex << (int) packet->dii_cmd << " instruction: " << packet->dii_insn << std::endl;
                         } else {
@@ -188,8 +190,10 @@ int main(int argc, char** argv, char** env) {
                     top->eval();
                     main_time++;
                     #if VM_TRACE
-                    trace_obj->dump(main_time);
-                    trace_obj->flush();
+                    if (verbosity > 2) {
+                        trace_obj->dump(main_time);
+                        trace_obj->flush();
+                    }
                     #endif
                 }
                 top->rst_ni = 1;
@@ -236,8 +240,8 @@ int main(int argc, char** argv, char** env) {
                 in_count = out_count;
                 if (verbosity > 0) {
                     std::cout << "Encountered exception"
-                              << " in_count: " << in_count
-                              << " out_count: " << out_count
+                              << " in_count: " << std::dec << in_count
+                              << " out_count: " << std::dec << out_count
                               << std::endl;
                 }
             } else if (top->perf_jump_o || top->perf_tbranch_o) {
@@ -245,8 +249,8 @@ int main(int argc, char** argv, char** env) {
                 in_count = out_count + 1;
                 if (verbosity > 0) {
                     std::cout << "Encountered branch/jump"
-                              << " in_count: " << in_count
-                              << " out_count: " << out_count
+                              << " in_count: " << std::dec << in_count
+                              << " out_count: " << std::dec << out_count
                               << std::endl;
                 }
             }
@@ -275,7 +279,7 @@ int main(int argc, char** argv, char** env) {
                     // address is not in range
                     top->instr_err_i = 1;
                     if (verbosity > 0) {
-                        std::cout << "instruction request out of range; in_count: " << in_count << std::endl;
+                        std::cout << "instruction request out of range; in_count: " << std::dec << in_count << std::endl;
                         std::cout << "    address: " << std::hex << instr_addr_prev << std::endl;
                     }
                 }
