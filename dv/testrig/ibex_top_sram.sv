@@ -51,6 +51,20 @@ module ibex_top_sram import ibex_pkg::*; #(
   input  logic [6:0]                   instr_rdata_intg_i,
   input  logic                         instr_err_i,
 
+  // Data memory interface
+  // Data will be provided by the simulation environment
+  output logic                         data_req_o,
+  input  logic                         data_gnt_i,
+  input  logic                         data_rvalid_i,
+  output logic                         data_we_o,
+  output logic [3:0]                   data_be_o,
+  output logic [31:0]                  data_addr_o,
+  output logic [31:0]                  data_wdata_o,
+  output logic [6:0]                   data_wdata_intg_o,
+  input  logic [31:0]                  data_rdata_i,
+  input  logic [6:0]                   data_rdata_intg_i,
+  input  logic                         data_err_i,
+
   // Interrupt inputs
   input  logic                         irq_software_i,
   input  logic                         irq_timer_i,
@@ -115,88 +129,6 @@ module ibex_top_sram import ibex_pkg::*; #(
   input logic                          scan_rst_ni
 );
 
-  // Core data memory interface
-  logic                         core_req        [1];
-  logic                         core_gnt        [1];
-  logic                         core_rvalid     [1];
-  logic                         core_we         [1];
-  logic [3:0]                   core_be         [1];
-  logic [31:0]                  core_addr       [1];
-  logic [31:0]                  core_wdata      [1];
-  logic [6:0]                   core_wdata_intg [1];
-  logic [31:0]                  core_rdata      [1];
-  logic [6:0]                   core_rdata_intg [1];
-  logic                         core_err        [1];
-
-  // RAM data memory interface
-  logic                         ram_req        [1];
-  logic                         ram_gnt        [1];
-  logic                         ram_rvalid     [1];
-  logic                         ram_we         [1];
-  logic [3:0]                   ram_be         [1];
-  logic [31:0]                  ram_addr       [1];
-  logic [31:0]                  ram_wdata      [1];
-  logic [6:0]                   ram_wdata_intg [1];
-  logic [31:0]                  ram_rdata      [1];
-  logic [6:0]                   ram_rdata_intg [1];
-  logic                         ram_err        [1];
-
-  // Memory configuration
-  logic [31:0] addr_base [1];
-  logic [31:0] addr_mask [1];
-  assign addr_base[0] = 32'h8000_0000;
-  assign addr_mask[0] = 32'h007F_FFFF;
-
-  // whether the memory access is in bounds
-  logic access_err_d, access_err_q;
-
-  logic core_err_or, ram_we_and;
-
-  assign access_err_d = core_req[0]
-                        && (core_addr[0] < addr_base[0]
-                            || core_addr[0] > addr_base[0] + addr_mask[0]);
-
-  // keep track of last cycle's request so we can use it for error setting
-  logic [31:0] core_addr_q;
-  always @(posedge clk_i) begin
-    access_err_q <= access_err_d;
-  end
-  // if the core requests memory out of range, set error
-  assign core_err_or = core_err[0] || access_err_q;
-  assign ram_we_and = ram_we[0] && !access_err_d;
-
-  bus #(
-    .NrDevices    ( 1),
-    .NrHosts      ( 1),
-    .DataWidth    (32),
-    .AddressWidth (32)
-  ) u_bus (
-    .clk_i (clk_i),
-    .rst_ni (rst_ni),
-
-    .host_req_i    (core_req   ),
-    .host_gnt_o    (core_gnt   ),
-    .host_addr_i   (core_addr  ),
-    .host_we_i     (core_we    ),
-    .host_be_i     (core_be    ),
-    .host_wdata_i  (core_wdata ),
-    .host_rvalid_o (core_rvalid),
-    .host_rdata_o  (core_rdata ),
-    .host_err_o    (core_err   ),
-
-    .device_req_o    (ram_req   ),
-    .device_addr_o   (ram_addr  ),
-    .device_we_o     (ram_we    ),
-    .device_be_o     (ram_be    ),
-    .device_wdata_o  (ram_wdata ),
-    .device_rvalid_i (ram_rvalid),
-    .device_rdata_i  (ram_rdata ),
-    .device_err_i    (ram_err   ),
-
-    .cfg_device_addr_base (addr_base),
-    .cfg_device_addr_mask (addr_mask)
-  );
-
   // ibex toplevel instantiation
   ibex_top #(
     .PMPEnable        ( PMPEnable        ),
@@ -241,17 +173,17 @@ module ibex_top_sram import ibex_pkg::*; #(
     .instr_err_i,
 
     // This is connected to the bus
-    .data_req_o        (core_req[0]       ),
-    .data_gnt_i        (core_gnt[0]       ),
-    .data_rvalid_i     (core_rvalid[0]    ),
-    .data_we_o         (core_we[0]        ),
-    .data_be_o         (core_be[0]        ),
-    .data_addr_o       (core_addr[0]      ),
-    .data_wdata_o      (core_wdata[0]     ),
-    .data_wdata_intg_o (core_wdata_intg[0]),
-    .data_rdata_i      (core_rdata[0]     ),
-    .data_rdata_intg_i (core_rdata_intg[0]),
-    .data_err_i        (core_err_or       ),
+    .data_req_o,
+    .data_gnt_i,
+    .data_rvalid_i,
+    .data_we_o,
+    .data_be_o,
+    .data_addr_o,
+    .data_wdata_o,
+    .data_wdata_intg_o,
+    .data_rdata_i,
+    .data_rdata_intg_i,
+    .data_err_i,
 
     .irq_software_i,
     .irq_timer_i,
@@ -310,20 +242,24 @@ module ibex_top_sram import ibex_pkg::*; #(
 
   // SRAM block for instruction and data storage
   // TODO this ram exists solely to allow compilation.
+  // Removing this instantiation or changing the signals causes verilator to
+  // not build (complaining about undefined references to set_mem and get_mem
+  // functions) or segfault if it does build
+  logic unused_rvalid_o;
+  logic [31:0] unused_rdata_o;
   ram_1p #(
-      .Depth((64*1024)/4), // 64KiB memory, Depth is number of 32b words
+      .Depth(8), // 64KiB memory, Depth is number of 32b words
       .MemInitFile("") // Memory should be zeroed to start with
     ) u_ram (
-      .clk_i       (clk_i),
-      .rst_ni      (rst_ni),
-
-      .req_i     (ram_req[0]   ),
-      .we_i      (ram_we_and   ),
-      .be_i      (ram_be[0]    ),
-      .addr_i    (ram_addr[0]  ),
-      .wdata_i   (ram_wdata[0] ),
-      .rvalid_o  (ram_rvalid[0]),
-      .rdata_o   (ram_rdata[0] )
+      .clk_i(0),
+      .rst_ni(1),
+      .req_i(0),
+      .we_i(0),
+      .be_i(0),
+      .addr_i(0),
+      .wdata_i(0),
+      .rvalid_o(unused_rvalid_o),
+      .rdata_o(unused_rdata_o)
     );
 
 endmodule
