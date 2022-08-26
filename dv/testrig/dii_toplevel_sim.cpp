@@ -232,9 +232,9 @@ int main(int argc, char** argv, char** env) {
             // exception, etc)
             // For now, experiment and see if these static instruction offsets
             // work
-            if (top->rvfi_valid && top->rvfi_trap) {
+            if ((top->rvfi_valid && top->rvfi_trap) || top->perf_xret_o) {
                 // there was an exception; roll back the input instruction counter
-                // When there is an exception, the RVFI data is returned
+                // When there is an exception/xret, the RVFI data is returned
                 // while the controller is in FLUSH state, so the new PC is
                 // being calculated this cycle but is not the one that the fetch
                 // stage requests.

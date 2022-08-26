@@ -114,6 +114,7 @@ module ibex_top_sram import ibex_pkg::*; #(
   output logic                         rvfi_ext_nmi,
   output logic                         rvfi_ext_debug_req,
   output logic [63:0]                  rvfi_ext_mcycle,
+  output logic                         perf_xret_o,
   output logic                         perf_jump_o,
   output logic                         perf_tbranch_o,
 `endif
@@ -228,6 +229,7 @@ module ibex_top_sram import ibex_pkg::*; #(
     .rvfi_ext_nmi,
     .rvfi_ext_debug_req,
     .rvfi_ext_mcycle,
+    .perf_xret_o,
     .perf_jump_o,
     .perf_tbranch_o,
 `endif
