@@ -267,13 +267,22 @@ int main(int argc, char** argv, char** env) {
                 if (1) {
                 //if (instr_addr_prev >= 0x80000000 && instr_addr_prev < 0x80010000) {
                     // address is in range
-                    top->instr_rdata_i = instructions[in_count].dii_insn;
                     top->instr_err_i = 0;
                     top->boot_addr_i = 0x00000000;
-                    in_count++;
-                    if (verbosity > 0) {
-                        std::cout << "inserting instruction; in_count: " << in_count << std::endl;
-                        std::cout << "    instruction: " << std::hex << top->instr_rdata_i << std::endl;
+
+                    if (instructions[in_count].dii_cmd) {
+                        top->instr_rdata_i = instructions[in_count].dii_insn;
+                        if (verbosity > 0) {
+                            std::cout << "inserting instruction; in_count: " << std::dec << in_count << std::endl;
+                            std::cout << "    instruction: " << std::hex << top->instr_rdata_i << std::endl;
+                        }
+                        in_count++;
+                    } else {
+                        top->instr_rdata_i = 0x13;
+                        if (verbosity > 0) {
+                            std::cout << "inserting dummy instruction; in_count: " << std::dec << in_count << std::endl;
+                            std::cout << "    instruction: " << std::hex << top->instr_rdata_i << std::endl;
+                        }
                     }
                 } else {
                     // address is not in range
