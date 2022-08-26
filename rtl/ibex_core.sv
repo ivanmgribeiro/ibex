@@ -1204,9 +1204,11 @@ module ibex_core import ibex_pkg::*; #(
   assign rvfi_rd_addr   = rvfi_stage_rd_addr  [RVFI_STAGES-1];
   assign rvfi_rd_wdata  = rvfi_stage_rd_wdata [RVFI_STAGES-1];
   assign rvfi_pc_rdata  = rvfi_stage_pc_rdata [RVFI_STAGES-1];
-  // if there was an exception, then we only have the target PC the cycle
-  // after
-  assign rvfi_pc_wdata  = pc_set && pc_mux_id == PC_EXC ? if_pc_set_target : rvfi_stage_pc_wdata [RVFI_STAGES-1];
+  // if the PC was set but not by a jump/branch, then we only have the target
+  // PC the cycle after since the controller is in FLUSH state
+  // TODO this is tested for MRET and exceptions, but not with
+  // branch brediction
+  assign rvfi_pc_wdata  = pc_set && (pc_mux_id != PC_JUMP) ? if_pc_set_target : rvfi_stage_pc_wdata [RVFI_STAGES-1];
   assign rvfi_mem_addr  = rvfi_stage_mem_addr [RVFI_STAGES-1];
   assign rvfi_mem_rmask = rvfi_stage_mem_rmask[RVFI_STAGES-1];
   assign rvfi_mem_wmask = rvfi_stage_mem_wmask[RVFI_STAGES-1];
