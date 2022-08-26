@@ -233,11 +233,17 @@ int main(int argc, char** argv, char** env) {
             // For now, experiment and see if these static instruction offsets
             // work
             if (top->rvfi_valid && top->rvfi_trap) {
-                // there was an exception; roll back instruction counter
-                // not sure what to roll back to yet
-                // for now, just roll back to the latest instruction that
-                // was committed in RVFI
-                in_count = out_count;
+                // there was an exception; roll back the input instruction counter
+                // When there is an exception, the RVFI data is returned
+                // while the controller is in FLUSH state, so the new PC is
+                // being calculated this cycle but is not the one that the fetch
+                // stage requests.
+                // This means the next 2 (if an instruction was requested this
+                // cycle) or 1 (if an instruction was not requested)
+                // instructions provided will be flushed, so we move back the
+                // input instruction counter accordingly to account for the next
+                // 2 or 1 fetches
+                in_count = top->instr_gnt_i ? out_count-1 : out_count;
                 if (verbosity > 0) {
                     std::cout << "Encountered exception"
                               << " in_count: " << std::dec << in_count
@@ -245,8 +251,22 @@ int main(int argc, char** argv, char** env) {
                               << std::endl;
                 }
             } else if (top->perf_jump_o || top->perf_tbranch_o) {
-                // there was a branch or jump; roll back as above
-                in_count = out_count + 1;
+                // there was a jump or taken branch; roll back as above
+                // both the jump and branch have the same consequences and flush the
+                // same amount of stuff from the pipeline so we can treat them
+                // the same
+                // Jumps + branches are handled in ID, so when one is taken, IF
+                // will be flushed
+                // if we provide an instruction this cycle, it will be flushed
+                // so we provide the jump again so that the next cycle, the
+                // instruction after the jump will be provided
+                // if we do not provide an instruction this cycle, then the
+                // instruction provided the next cycle will be executed, so we
+                // make our instruction counter point to that
+                // instructions[out_count] points at the instruction _after_ the
+                // most recently retired instruction (because of 0 indexing)
+                // i.e. this jump (which has not yet retired)
+                in_count = top->instr_gnt_i ? out_count : out_count + 1;
                 if (verbosity > 0) {
                     std::cout << "Encountered branch/jump"
                               << " in_count: " << std::dec << in_count
