@@ -140,6 +140,7 @@ module ibex_top import ibex_pkg::*; #(
   localparam bit          ResetAll          = Lockstep;
   localparam bit          DummyInstructions = SecureIbex;
   localparam int unsigned CheriCapWidth     = 91;
+  localparam bit [90:0]   CheriAlmightyCap  = 91'h40000000003FFDF690003F0;
   localparam bit          RegFileECC        = SecureIbex;
   localparam bit          RegFileWrenCheck  = SecureIbex;
   localparam int unsigned RegFileDataWidth  = CheriCapWidth;
@@ -394,7 +395,7 @@ module ibex_top import ibex_pkg::*; #(
       .DummyInstructions(DummyInstructions),
       // SEC_CM: DATA_REG_SW.GLITCH_DETECT
       .WrenCheck        (RegFileWrenCheck),
-      .WordZeroVal      (RegFileDataWidth'(prim_secded_pkg::SecdedInv3932ZeroWord))
+      .WordZeroVal      (RegFileDataWidth'(CheriAlmightyCap))
     ) register_file_i (
       .clk_i (clk),
       .rst_ni(rst_ni),
@@ -418,7 +419,7 @@ module ibex_top import ibex_pkg::*; #(
       .DummyInstructions(DummyInstructions),
       // SEC_CM: DATA_REG_SW.GLITCH_DETECT
       .WrenCheck        (RegFileWrenCheck),
-      .WordZeroVal      (RegFileDataWidth'(prim_secded_pkg::SecdedInv3932ZeroWord))
+      .WordZeroVal      (RegFileDataWidth'(CheriAlmightyCap))
     ) register_file_i (
       .clk_i (clk),
       .rst_ni(rst_ni),
@@ -442,7 +443,7 @@ module ibex_top import ibex_pkg::*; #(
       .DummyInstructions(DummyInstructions),
       // SEC_CM: DATA_REG_SW.GLITCH_DETECT
       .WrenCheck        (RegFileWrenCheck),
-      .WordZeroVal      (RegFileDataWidth'(prim_secded_pkg::SecdedInv3932ZeroWord))
+      .WordZeroVal      (RegFileDataWidth'(CheriAlmightyCap))
     ) register_file_i (
       .clk_i (clk),
       .rst_ni(rst_ni),
