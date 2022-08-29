@@ -139,9 +139,10 @@ module ibex_top import ibex_pkg::*; #(
   localparam bit          Lockstep          = SecureIbex;
   localparam bit          ResetAll          = Lockstep;
   localparam bit          DummyInstructions = SecureIbex;
+  localparam int unsigned CheriCapWidth     = 91;
   localparam bit          RegFileECC        = SecureIbex;
   localparam bit          RegFileWrenCheck  = SecureIbex;
-  localparam int unsigned RegFileDataWidth  = RegFileECC ? 32 + 7 : 32;
+  localparam int unsigned RegFileDataWidth  = CheriCapWidth;
   localparam bit          MemECC            = SecureIbex;
   localparam int unsigned MemDataWidth      = MemECC ? 32 + 7 : 32;
   // Icache parameters
@@ -277,6 +278,7 @@ module ibex_top import ibex_pkg::*; #(
     .RndCnstLfsrPerm  (RndCnstLfsrPerm),
     .SecureIbex       (SecureIbex),
     .DummyInstructions(DummyInstructions),
+    .CheriCapWidth    (CheriCapWidth),
     .RegFileECC       (RegFileECC),
     .RegFileDataWidth (RegFileDataWidth),
     .MemECC           (MemECC),

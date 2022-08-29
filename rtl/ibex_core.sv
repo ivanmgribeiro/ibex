@@ -37,6 +37,7 @@ module ibex_core import ibex_pkg::*; #(
   parameter lfsr_perm_t  RndCnstLfsrPerm   = RndCnstLfsrPermDefault,
   parameter bit          SecureIbex        = 1'b0,
   parameter bit          DummyInstructions = 1'b0,
+  parameter int unsigned CheriCapWidth     = 91,
   parameter bit          RegFileECC        = 1'b0,
   parameter int unsigned RegFileDataWidth  = 32,
   parameter bit          MemECC            = 1'b0,
@@ -852,13 +853,21 @@ module ibex_core import ibex_pkg::*; #(
     logic unused_rf_ren_a, unused_rf_ren_b;
     logic unused_rf_rd_a_wb_match, unused_rf_rd_b_wb_match;
 
+    logic [CheriCapWidth-1:0] rf_wdata_wb_cap;
+    logic [31:0]              rf_rdata_a_addr, rf_rdata_b_addr;
+
+    // Instantiate capability modification modules
+    module_wrap64_nullWithAddr rf_wdata_nullWithAddr (rf_wdata_wb, rf_wdata_wb_cap);
+    module_wrap64_getAddr      rf_rdata_a_getAddr    (rf_rdata_a_ecc_i, rf_rdata_a_addr);
+    module_wrap64_getAddr      rf_rdata_b_getAddr    (rf_rdata_b_ecc_i, rf_rdata_b_addr);
+
     assign unused_rf_ren_a         = rf_ren_a;
     assign unused_rf_ren_b         = rf_ren_b;
     assign unused_rf_rd_a_wb_match = rf_rd_a_wb_match;
     assign unused_rf_rd_b_wb_match = rf_rd_b_wb_match;
-    assign rf_wdata_wb_ecc_o       = rf_wdata_wb;
-    assign rf_rdata_a              = rf_rdata_a_ecc_i;
-    assign rf_rdata_b              = rf_rdata_b_ecc_i;
+    assign rf_wdata_wb_ecc_o       = rf_wdata_wb_cap;
+    assign rf_rdata_a              = rf_rdata_a_addr;
+    assign rf_rdata_b              = rf_rdata_b_addr;
     assign rf_ecc_err_comb         = 1'b0;
   end
 

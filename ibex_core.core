@@ -14,6 +14,7 @@ filesets:
       - lowrisc:ibex:ibex_pkg
       - lowrisc:ibex:ibex_icache
       - lowrisc:dv:dv_fcov_macros
+      - ucam:cheri:cheri-cap-lib-verilog-wrappers
     files:
       - rtl/ibex_alu.sv
       - rtl/ibex_branch_predict.sv
