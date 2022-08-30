@@ -18,6 +18,7 @@ filesets:
     files:
       - rtl/ibex_alu.sv
       - rtl/ibex_branch_predict.sv
+      - rtl/ibex_cheri_alu.sv
       - rtl/ibex_compressed_decoder.sv
       - rtl/ibex_controller.sv
       - rtl/ibex_cs_registers.sv

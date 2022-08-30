@@ -11,7 +11,8 @@
 module ibex_ex_block #(
   parameter ibex_pkg::rv32m_e RV32M           = ibex_pkg::RV32MFast,
   parameter ibex_pkg::rv32b_e RV32B           = ibex_pkg::RV32BNone,
-  parameter bit               BranchTargetALU = 0
+  parameter bit               BranchTargetALU = 0,
+  parameter int unsigned      CheriCapWidth   = 91
 ) (
   input  logic                  clk_i,
   input  logic                  rst_ni,
@@ -43,6 +44,22 @@ module ibex_ex_block #(
   output logic [1:0]            imd_val_we_o,
   output logic [33:0]           imd_val_d_o[2],
   input  logic [33:0]           imd_val_q_i[2],
+
+  // CHERI ALU
+  input logic cheri_en_i,
+
+  input ibex_pkg::cheri_base_opcode_e    cheri_base_opcode_i,
+  input ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_i,
+  input ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_i,
+
+  input logic [CheriCapWidth-1:0] cheri_operand_a_i,
+  input logic [CheriCapWidth-1:0] cheri_operand_b_i,
+
+  output logic [CheriCapWidth-1:0] cheri_result_o,
+  output logic cheri_wrote_capability,
+
+  output logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_o,
+  output logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_o,
 
   // Outputs
   output logic [31:0]           alu_adder_result_ex_o, // to LSU
@@ -195,5 +212,32 @@ module ibex_ex_block #(
   // unless the intermediate result register is being written (which indicates this isn't the
   // final cycle of ALU operation).
   assign ex_valid_o = multdiv_sel ? multdiv_valid : ~(|alu_imd_val_we);
+
+  ///////////////
+  // CHERI ALU //
+  ///////////////
+  ibex_cheri_alu #(
+    .CheriCapWidth(CheriCapWidth)
+  ) cheri_alu_i (
+    .base_opcode_i    (cheri_base_opcode_i),
+    .threeop_opcode_i (cheri_threeop_opcode_i),
+    .s_a_d_opcode_i   (cheri_s_a_d_opcode_i),
+
+    .operand_a_i   (cheri_operand_a_i),
+    .operand_b_i   (cheri_operand_b_i),
+
+    // TODO disconnected for now, connect these later on to the ALU
+    .alu_operand_a_o(),
+    .alu_operand_b_o(),
+    .alu_operator_o (),
+    .alu_result_i   (),
+
+    .result_o  (cheri_result_o),
+    .wrote_capability(cheri_wrote_capability),
+
+    .exceptions_a_o (cheri_exceptions_a_o),
+    .exceptions_b_o (cheri_exceptions_b_o)
+  );
+
 
 endmodule

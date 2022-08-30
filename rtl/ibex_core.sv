@@ -694,6 +694,21 @@ module ibex_core import ibex_pkg::*; #(
     .imd_val_d_o (imd_val_d_ex),
     .imd_val_q_i (imd_val_q_ex),
 
+    // CHERI ALU
+    .cheri_en_i(),
+    .cheri_base_opcode_i(),
+    .cheri_threeop_opcode_i(),
+    .cheri_s_a_d_opcode_i(),
+
+    .cheri_operand_a_i(),
+    .cheri_operand_b_i(),
+
+    .cheri_result_o(),
+    .cheri_wrote_capability(),
+
+    .cheri_exceptions_a_o(),
+    .cheri_exceptions_b_o(),
+
     // Outputs
     .alu_adder_result_ex_o(alu_adder_result_ex),  // to LSU
     .result_ex_o          (result_ex),  // to ID
