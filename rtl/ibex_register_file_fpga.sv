@@ -47,10 +47,10 @@ module ibex_register_file_fpga #(
   logic we; // write enable if writing to any register other than R0
 
   // async_read a
-  assign rdata_a_o = (raddr_a_i == '0) ? '0 : mem[raddr_a_i];
+  assign rdata_a_o = (raddr_a_i == '0) ? WordZeroVal : mem[raddr_a_i];
 
   // async_read b
-  assign rdata_b_o = (raddr_b_i == '0) ? '0 : mem[raddr_b_i];
+  assign rdata_b_o = (raddr_b_i == '0) ? WordZeroVal : mem[raddr_b_i];
 
   // we select
   assign we = (waddr_a_i == '0) ? 1'b0 : we_a_i;
