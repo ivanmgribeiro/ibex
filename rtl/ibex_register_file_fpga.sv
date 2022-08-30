@@ -16,6 +16,7 @@ module ibex_register_file_fpga #(
     parameter int unsigned          DataWidth         = 32,
     parameter bit                   DummyInstructions = 0,
     parameter bit                   WrenCheck         = 0,
+    parameter logic [DataWidth-1:0] WordResetVal      = '0,
     parameter logic [DataWidth-1:0] WordZeroVal       = '0
 ) (
   // Clock and Reset
@@ -78,7 +79,7 @@ module ibex_register_file_fpga #(
   // Make sure we initialize the BRAM with the correct register reset value.
   initial begin
     for (int k = 0; k < NUM_WORDS; k++) begin
-      mem[k] = WordZeroVal;
+      mem[k] = WordResetVal;
     end
   end
 

@@ -21,7 +21,7 @@ module ibex_top import ibex_pkg::*; #(
   parameter bit          RV32E            = 1'b0,
   parameter rv32m_e      RV32M            = RV32MFast,
   parameter rv32b_e      RV32B            = RV32BNone,
-  parameter regfile_e    RegFile          = RegFileFF,
+  parameter regfile_e    RegFile          = RegFileFPGA,
   parameter bit          BranchTargetALU  = 1'b0,
   parameter bit          WritebackStage   = 1'b0,
   parameter bit          ICache           = 1'b0,
@@ -140,6 +140,7 @@ module ibex_top import ibex_pkg::*; #(
   localparam bit          ResetAll          = Lockstep;
   localparam bit          DummyInstructions = SecureIbex;
   localparam int unsigned CheriCapWidth     = 91;
+  localparam bit [90:0]   CheriNullCap      = 91'h00000000000001F690003F0;
   localparam bit [90:0]   CheriAlmightyCap  = 91'h40000000003FFDF690003F0;
   localparam bit          RegFileECC        = SecureIbex;
   localparam bit          RegFileWrenCheck  = SecureIbex;
@@ -395,7 +396,8 @@ module ibex_top import ibex_pkg::*; #(
       .DummyInstructions(DummyInstructions),
       // SEC_CM: DATA_REG_SW.GLITCH_DETECT
       .WrenCheck        (RegFileWrenCheck),
-      .WordZeroVal      (RegFileDataWidth'(CheriAlmightyCap))
+      .WordResetVal     (RegFileDataWidth'(CheriAlmightyCap)),
+      .WordZeroVal      (RegFileDataWidth'(CheriNullCap))
     ) register_file_i (
       .clk_i (clk),
       .rst_ni(rst_ni),
