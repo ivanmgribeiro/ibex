@@ -25,7 +25,8 @@ module ibex_id_stage #(
   parameter bit               BranchTargetALU = 0,
   parameter bit               WritebackStage  = 0,
   parameter bit               BranchPredictor = 0,
-  parameter bit               MemECC          = 1'b0
+  parameter bit               MemECC          = 1'b0,
+  parameter int unsigned      CheriCapWidth   = 91
 ) (
   input  logic                      clk_i,
   input  logic                      rst_ni,
@@ -155,22 +156,26 @@ module ibex_id_stage #(
 
   // Register file read
   output logic [4:0]                rf_raddr_a_o,
-  input  logic [31:0]               rf_rdata_a_i,
+  input  logic [CheriCapWidth-1:0]  rf_rdata_a_cap_i,
+  input  logic [31:0]               rf_rdata_a_int_i,
   output logic [4:0]                rf_raddr_b_o,
-  input  logic [31:0]               rf_rdata_b_i,
+  input  logic [CheriCapWidth-1:0]  rf_rdata_b_cap_i,
+  input  logic [31:0]               rf_rdata_b_int_i,
   output logic                      rf_ren_a_o,
   output logic                      rf_ren_b_o,
 
   // Register file write (via writeback)
   output logic [4:0]                rf_waddr_id_o,
-  output logic [31:0]               rf_wdata_id_o,
+  output logic [CheriCapWidth-1:0]  rf_wdata_cap_id_o,
+  output logic [31:0]               rf_wdata_int_id_o,
   output logic                      rf_we_id_o,
   output logic                      rf_rd_a_wb_match_o,
   output logic                      rf_rd_b_wb_match_o,
 
   // Register write information from writeback (for resolving data hazards)
   input  logic [4:0]                rf_waddr_wb_i,
-  input  logic [31:0]               rf_wdata_fwd_wb_i,
+  input  logic [CheriCapWidth-1:0]  rf_wdata_cap_fwd_wb_i,
+  input  logic [31:0]               rf_wdata_int_fwd_wb_i,
   input  logic                      rf_write_wb_i,
 
   output  logic                     en_wb_o,
@@ -256,8 +261,10 @@ module ibex_id_stage #(
   assign rf_ren_a_o = rf_ren_a;
   assign rf_ren_b_o = rf_ren_b;
 
-  logic [31:0] rf_rdata_a_fwd;
-  logic [31:0] rf_rdata_b_fwd;
+  logic [CheriCapWidth-1:0] rf_rdata_a_cap_fwd;
+  logic [31:0]              rf_rdata_a_int_fwd;
+  logic [CheriCapWidth-1:0] rf_rdata_b_cap_fwd;
+  logic [31:0]              rf_rdata_b_int_fwd;
 
   // ALU Control
   alu_op_e     alu_operator;
@@ -313,7 +320,7 @@ module ibex_id_stage #(
   // Main ALU MUX for Operand A
   always_comb begin : alu_operand_a_mux
     unique case (alu_op_a_mux_sel)
-      OP_A_REG_A:  alu_operand_a = rf_rdata_a_fwd;
+      OP_A_REG_A:  alu_operand_a = rf_rdata_a_int_fwd;
       OP_A_FWD:    alu_operand_a = lsu_addr_last_i;
       OP_A_CURRPC: alu_operand_a = pc_id_i;
       OP_A_IMM:    alu_operand_a = imm_a;
@@ -325,7 +332,7 @@ module ibex_id_stage #(
     // Branch target ALU operand A mux
     always_comb begin : bt_operand_a_mux
       unique case (bt_a_mux_sel)
-        OP_A_REG_A:  bt_a_operand_o = rf_rdata_a_fwd;
+        OP_A_REG_A:  bt_a_operand_o = rf_rdata_a_int_fwd;
         OP_A_CURRPC: bt_a_operand_o = pc_id_i;
         default:     bt_a_operand_o = pc_id_i;
       endcase
@@ -392,7 +399,7 @@ module ibex_id_stage #(
   end
 
   // ALU MUX for Operand B
-  assign alu_operand_b = (alu_op_b_mux_sel == OP_B_IMM) ? imm_b : rf_rdata_b_fwd;
+  assign alu_operand_b = (alu_op_b_mux_sel == OP_B_IMM) ? imm_b : rf_rdata_b_int_fwd;
 
   /////////////////////////////////////////
   // Multicycle Operation Stage Register //
@@ -420,9 +427,9 @@ module ibex_id_stage #(
   // Register file write data mux
   always_comb begin : rf_wdata_id_mux
     unique case (rf_wdata_sel)
-      RF_WD_EX:  rf_wdata_id_o = result_ex_i;
-      RF_WD_CSR: rf_wdata_id_o = csr_rdata_i;
-      default:   rf_wdata_id_o = result_ex_i;
+      RF_WD_EX:  rf_wdata_int_id_o = result_ex_i;
+      RF_WD_CSR: rf_wdata_int_id_o = csr_rdata_i;
+      default:   rf_wdata_int_id_o = result_ex_i;
     endcase
   end
 
@@ -675,7 +682,8 @@ module ibex_id_stage #(
   assign lsu_we_o                = lsu_we;
   assign lsu_type_o              = lsu_type;
   assign lsu_sign_ext_o          = lsu_sign_ext;
-  assign lsu_wdata_o             = rf_rdata_b_fwd;
+  // TODO eventually will want LSU to write out capabilities
+  assign lsu_wdata_o             = rf_rdata_b_int_fwd;
   // csr_op_en_o is set when CSR access should actually happen.
   // csv_access_o is set when CSR access instruction is present and is used to compute whether a CSR
   // access is illegal. A combinational loop would be created if csr_op_en_o was used along (as
@@ -691,8 +699,8 @@ module ibex_id_stage #(
 
   assign multdiv_operator_ex_o       = multdiv_operator;
   assign multdiv_signed_mode_ex_o    = multdiv_signed_mode;
-  assign multdiv_operand_a_ex_o      = rf_rdata_a_fwd;
-  assign multdiv_operand_b_ex_o      = rf_rdata_b_fwd;
+  assign multdiv_operand_a_ex_o      = rf_rdata_a_int_fwd;
+  assign multdiv_operand_b_ex_o      = rf_rdata_b_int_fwd;
 
   ////////////////////////
   // Branch set control //
@@ -1018,8 +1026,10 @@ module ibex_id_stage #(
     // If instruction is read register that writeback is writing forward writeback data to read
     // data. Note this doesn't factor in load data as it arrives too late, such hazards are
     // resolved via a stall (see above).
-    assign rf_rdata_a_fwd = rf_rd_a_wb_match & rf_write_wb_i ? rf_wdata_fwd_wb_i : rf_rdata_a_i;
-    assign rf_rdata_b_fwd = rf_rd_b_wb_match & rf_write_wb_i ? rf_wdata_fwd_wb_i : rf_rdata_b_i;
+    assign rf_rdata_a_cap_fwd = rf_rd_a_wb_match & rf_write_wb_i ? rf_wdata_cap_fwd_wb_i : rf_rdata_a_cap_i;
+    assign rf_rdata_a_int_fwd = rf_rd_a_wb_match & rf_write_wb_i ? rf_wdata_int_fwd_wb_i : rf_rdata_a_int_i;
+    assign rf_rdata_b_cap_fwd = rf_rd_b_wb_match & rf_write_wb_i ? rf_wdata_cap_fwd_wb_i : rf_rdata_b_cap_i;
+    assign rf_rdata_b_int_fwd = rf_rd_b_wb_match & rf_write_wb_i ? rf_wdata_int_fwd_wb_i : rf_rdata_b_int_i;
 
     assign stall_ld_hz = outstanding_load_wb_i & (rf_rd_a_hz | rf_rd_b_hz);
 
@@ -1056,8 +1066,10 @@ module ibex_id_stage #(
 
     // No data forwarding without writeback stage so always take source register data direct from
     // register file
-    assign rf_rdata_a_fwd = rf_rdata_a_i;
-    assign rf_rdata_b_fwd = rf_rdata_b_i;
+    assign rf_rdata_a_cap_fwd = rf_rdata_a_cap_i;
+    assign rf_rdata_a_int_fwd = rf_rdata_a_int_i;
+    assign rf_rdata_b_cap_fwd = rf_rdata_b_cap_i;
+    assign rf_rdata_b_int_fwd = rf_rdata_b_int_i;
 
     assign rf_rd_a_wb_match_o = 1'b0;
     assign rf_rd_b_wb_match_o = 1'b0;
@@ -1071,7 +1083,8 @@ module ibex_id_stage #(
     logic unused_outstanding_load_wb;
     logic unused_outstanding_store_wb;
     logic unused_wb_exception;
-    logic [31:0] unused_rf_wdata_fwd_wb;
+    logic [CheriCapWidth-1:0] unused_rf_wdata_cap_fwd_wb;
+    logic [31:0]              unused_rf_wdata_int_fwd_wb;
     logic unused_id_exception;
 
     assign unused_data_req_done_ex     = lsu_req_done_i;
@@ -1080,7 +1093,8 @@ module ibex_id_stage #(
     assign unused_outstanding_load_wb  = outstanding_load_wb_i;
     assign unused_outstanding_store_wb = outstanding_store_wb_i;
     assign unused_wb_exception         = wb_exception;
-    assign unused_rf_wdata_fwd_wb      = rf_wdata_fwd_wb_i;
+    assign unused_rf_wdata_cap_fwd_wb      = rf_wdata_cap_fwd_wb_i;
+    assign unused_rf_wdata_int_fwd_wb      = rf_wdata_int_fwd_wb_i;
     assign unused_id_exception         = id_exception;
 
     assign instr_type_wb_o = WB_INSTR_OTHER;

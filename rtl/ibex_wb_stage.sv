@@ -15,8 +15,9 @@
 `include "dv_fcov_macros.svh"
 
 module ibex_wb_stage #(
-  parameter bit ResetAll       = 1'b0,
-  parameter bit WritebackStage = 1'b0
+  parameter bit          ResetAll       = 1'b0,
+  parameter bit          WritebackStage = 1'b0,
+  parameter int unsigned CheriCapWidth  = 91
 ) (
   input  logic                     clk_i,
   input  logic                     rst_ni,
@@ -38,16 +39,20 @@ module ibex_wb_stage #(
   output logic                     perf_instr_ret_compressed_wb_spec_o,
 
   input  logic [4:0]               rf_waddr_id_i,
-  input  logic [31:0]              rf_wdata_id_i,
+  input  logic [CheriCapWidth-1:0] rf_wdata_cap_id_i,
+  input  logic [31:0]              rf_wdata_int_id_i,
   input  logic                     rf_we_id_i,
 
-  input  logic [31:0]              rf_wdata_lsu_i,
+  input  logic [CheriCapWidth-1:0] rf_wdata_cap_lsu_i,
+  input  logic [31:0]              rf_wdata_int_lsu_i,
   input  logic                     rf_we_lsu_i,
 
-  output logic [31:0]              rf_wdata_fwd_wb_o,
+  output logic [CheriCapWidth-1:0] rf_wdata_cap_fwd_wb_o,
+  output logic [31:0]              rf_wdata_int_fwd_wb_o,
 
   output logic [4:0]               rf_waddr_wb_o,
-  output logic [31:0]              rf_wdata_wb_o,
+  output logic [CheriCapWidth-1:0] rf_wdata_cap_wb_o,
+  output logic [31:0]              rf_wdata_int_wb_o,
   output logic                     rf_we_wb_o,
 
   input logic                      lsu_resp_valid_i,
@@ -60,23 +65,25 @@ module ibex_wb_stage #(
 
   // 0 == RF write from ID
   // 1 == RF write from LSU
-  logic [31:0] rf_wdata_wb_mux    [2];
-  logic [1:0]  rf_wdata_wb_mux_we;
+  logic [CheriCapWidth-1:0] rf_wdata_cap_wb_mux    [2];
+  logic [31:0]              rf_wdata_int_wb_mux    [2];
+  logic [1:0]               rf_wdata_wb_mux_we;
 
   if (WritebackStage) begin : g_writeback_stage
-    logic [31:0]    rf_wdata_wb_q;
-    logic           rf_we_wb_q;
-    logic [4:0]     rf_waddr_wb_q;
+    logic [CheriCapWidth-1:0] rf_wdata_cap_wb_q;
+    logic [31:0]              rf_wdata_int_wb_q;
+    logic                     rf_we_wb_q;
+    logic [4:0]               rf_waddr_wb_q;
 
-    logic           wb_done;
+    logic                     wb_done;
 
-    logic           wb_valid_q;
-    logic [31:0]    wb_pc_q;
-    logic           wb_compressed_q;
-    logic           wb_count_q;
-    wb_instr_type_e wb_instr_type_q;
+    logic                     wb_valid_q;
+    logic [31:0]              wb_pc_q;
+    logic                     wb_compressed_q;
+    logic                     wb_count_q;
+    wb_instr_type_e           wb_instr_type_q;
 
-    logic           wb_valid_d;
+    logic                     wb_valid_d;
 
     // Stage becomes valid if an instruction enters for ID/EX and valid is cleared when instruction
     // is done
@@ -98,40 +105,44 @@ module ibex_wb_stage #(
     if (ResetAll) begin : g_wb_regs_ra
       always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-          rf_we_wb_q      <= '0;
-          rf_waddr_wb_q   <= '0;
-          rf_wdata_wb_q   <= '0;
-          wb_instr_type_q <= wb_instr_type_e'(0);
-          wb_pc_q         <= '0;
-          wb_compressed_q <= '0;
-          wb_count_q      <= '0;
+          rf_we_wb_q          <= '0;
+          rf_waddr_wb_q       <= '0;
+          rf_wdata_cap_wb_q   <= '0;
+          rf_wdata_int_wb_q   <= '0;
+          wb_instr_type_q     <= wb_instr_type_e'(0);
+          wb_pc_q             <= '0;
+          wb_compressed_q     <= '0;
+          wb_count_q          <= '0;
         end else if (en_wb_i) begin
-          rf_we_wb_q      <= rf_we_id_i;
-          rf_waddr_wb_q   <= rf_waddr_id_i;
-          rf_wdata_wb_q   <= rf_wdata_id_i;
-          wb_instr_type_q <= instr_type_wb_i;
-          wb_pc_q         <= pc_id_i;
-          wb_compressed_q <= instr_is_compressed_id_i;
-          wb_count_q      <= instr_perf_count_id_i;
+          rf_we_wb_q          <= rf_we_id_i;
+          rf_waddr_wb_q       <= rf_waddr_id_i;
+          rf_wdata_cap_wb_q   <= rf_wdata_cap_id_i;
+          rf_wdata_int_wb_q   <= rf_wdata_int_id_i;
+          wb_instr_type_q     <= instr_type_wb_i;
+          wb_pc_q             <= pc_id_i;
+          wb_compressed_q     <= instr_is_compressed_id_i;
+          wb_count_q          <= instr_perf_count_id_i;
         end
       end
     end else begin : g_wb_regs_nr
       always_ff @(posedge clk_i) begin
         if (en_wb_i) begin
-          rf_we_wb_q      <= rf_we_id_i;
-          rf_waddr_wb_q   <= rf_waddr_id_i;
-          rf_wdata_wb_q   <= rf_wdata_id_i;
-          wb_instr_type_q <= instr_type_wb_i;
-          wb_pc_q         <= pc_id_i;
-          wb_compressed_q <= instr_is_compressed_id_i;
-          wb_count_q      <= instr_perf_count_id_i;
+          rf_we_wb_q          <= rf_we_id_i;
+          rf_waddr_wb_q       <= rf_waddr_id_i;
+          rf_wdata_cap_wb_q   <= rf_wdata_cap_id_i;
+          rf_wdata_int_wb_q   <= rf_wdata_int_id_i;
+          wb_instr_type_q     <= instr_type_wb_i;
+          wb_pc_q             <= pc_id_i;
+          wb_compressed_q     <= instr_is_compressed_id_i;
+          wb_count_q          <= instr_perf_count_id_i;
         end
       end
     end
 
-    assign rf_waddr_wb_o         = rf_waddr_wb_q;
-    assign rf_wdata_wb_mux[0]    = rf_wdata_wb_q;
-    assign rf_wdata_wb_mux_we[0] = rf_we_wb_q & wb_valid_q;
+    assign rf_waddr_wb_o             = rf_waddr_wb_q;
+    assign rf_wdata_cap_wb_mux[0]    = rf_wdata_cap_wb_q;
+    assign rf_wdata_int_wb_mux[0]    = rf_wdata_int_wb_q;
+    assign rf_wdata_wb_mux_we[0]     = rf_we_wb_q & wb_valid_q;
 
     assign ready_wb_o = ~wb_valid_q | wb_done;
 
@@ -159,12 +170,14 @@ module ibex_wb_stage #(
     // Forward data that will be written to the RF back to ID to resolve data hazards. The flopped
     // rf_wdata_wb_q is used rather than rf_wdata_wb_o as the latter includes read data from memory
     // that returns too late to be used on the forwarding path.
-    assign rf_wdata_fwd_wb_o = rf_wdata_wb_q;
+    assign rf_wdata_cap_fwd_wb_o = rf_wdata_cap_wb_q;
+    assign rf_wdata_int_fwd_wb_o = rf_wdata_int_wb_q;
   end else begin : g_bypass_wb
     // without writeback stage just pass through register write signals
-    assign rf_waddr_wb_o         = rf_waddr_id_i;
-    assign rf_wdata_wb_mux[0]    = rf_wdata_id_i;
-    assign rf_wdata_wb_mux_we[0] = rf_we_id_i;
+    assign rf_waddr_wb_o          = rf_waddr_id_i;
+    assign rf_wdata_cap_wb_mux[0] = rf_wdata_cap_id_i;
+    assign rf_wdata_int_wb_mux[0] = rf_wdata_int_id_i;
+    assign rf_wdata_wb_mux_we[0]  = rf_we_id_i;
 
     // Increment instruction retire counters for valid instructions which are not lsu errors.
     // The speculative signals are always 0 when no writeback stage is present as the raw counter
@@ -195,17 +208,21 @@ module ibex_wb_stage #(
     assign outstanding_store_wb_o = 1'b0;
     assign pc_wb_o                = '0;
     assign rf_write_wb_o          = 1'b0;
-    assign rf_wdata_fwd_wb_o      = 32'b0;
+    assign rf_wdata_cap_fwd_wb_o  = {CheriCapWidth{1'b0}};
+    assign rf_wdata_int_fwd_wb_o  = 32'b0;
     assign instr_done_wb_o        = 1'b0;
   end
 
-  assign rf_wdata_wb_mux[1]    = rf_wdata_lsu_i;
-  assign rf_wdata_wb_mux_we[1] = rf_we_lsu_i;
+  assign rf_wdata_cap_wb_mux[1]    = rf_wdata_cap_lsu_i;
+  assign rf_wdata_int_wb_mux[1]    = rf_wdata_int_lsu_i;
+  assign rf_wdata_wb_mux_we[1]     = rf_we_lsu_i;
 
   // RF write data can come from ID results (all RF writes that aren't because of loads will come
   // from here) or the LSU (RF writes for load data)
-  assign rf_wdata_wb_o = ({32{rf_wdata_wb_mux_we[0]}} & rf_wdata_wb_mux[0]) |
-                         ({32{rf_wdata_wb_mux_we[1]}} & rf_wdata_wb_mux[1]);
+  assign rf_wdata_cap_wb_o = ({CheriCapWidth{rf_wdata_wb_mux_we[0]}} & rf_wdata_cap_wb_mux[0]) |
+                             ({CheriCapWidth{rf_wdata_wb_mux_we[1]}} & rf_wdata_cap_wb_mux[1]);
+  assign rf_wdata_int_wb_o = ({32{rf_wdata_wb_mux_we[0]}} & rf_wdata_int_wb_mux[0]) |
+                             ({32{rf_wdata_wb_mux_we[1]}} & rf_wdata_int_wb_mux[1]);
   assign rf_we_wb_o    = |rf_wdata_wb_mux_we;
 
   `DV_FCOV_SIGNAL_GEN_IF(logic, wb_valid, g_writeback_stage.wb_valid_q, WritebackStage)

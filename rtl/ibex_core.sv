@@ -222,27 +222,33 @@ module ibex_core import ibex_pkg::*; #(
   logic        lsu_busy;
 
   // Register File
-  logic [4:0]  rf_raddr_a;
-  logic [31:0] rf_rdata_a;
-  logic [4:0]  rf_raddr_b;
-  logic [31:0] rf_rdata_b;
-  logic        rf_ren_a;
-  logic        rf_ren_b;
-  logic [4:0]  rf_waddr_wb;
-  logic [31:0] rf_wdata_wb;
+  logic [4:0]               rf_raddr_a;
+  logic [CheriCapWidth-1:0] rf_rdata_a_cap;
+  logic [31:0]              rf_rdata_a_int;
+  logic [4:0]               rf_raddr_b;
+  logic [CheriCapWidth-1:0] rf_rdata_b_cap;
+  logic [31:0]              rf_rdata_b_int;
+  logic                     rf_ren_a;
+  logic                     rf_ren_b;
+  logic [4:0]               rf_waddr_wb;
+  logic [CheriCapWidth-1:0] rf_wdata_cap_wb;
+  logic [31:0]              rf_wdata_int_wb;
   // Writeback register write data that can be used on the forwarding path (doesn't factor in memory
   // read data as this is too late for the forwarding path)
-  logic [31:0] rf_wdata_fwd_wb;
-  logic [31:0] rf_wdata_lsu;
-  logic        rf_we_wb;
-  logic        rf_we_lsu;
-  logic        rf_ecc_err_comb;
+  logic [CheriCapWidth-1:0] rf_wdata_cap_fwd_wb;
+  logic [31:0]              rf_wdata_int_fwd_wb;
+  logic [CheriCapWidth-1:0] rf_wdata_cap_lsu;
+  logic [31:0]              rf_wdata_int_lsu;
+  logic                     rf_we_wb;
+  logic                     rf_we_lsu;
+  logic                     rf_ecc_err_comb;
 
-  logic [4:0]  rf_waddr_id;
-  logic [31:0] rf_wdata_id;
-  logic        rf_we_id;
-  logic        rf_rd_a_wb_match;
-  logic        rf_rd_b_wb_match;
+  logic [4:0]               rf_waddr_id;
+  logic [CheriCapWidth-1:0] rf_wdata_cap_id;
+  logic [31:0]              rf_wdata_int_id;
+  logic                     rf_we_id;
+  logic                     rf_rd_a_wb_match;
+  logic                     rf_rd_b_wb_match;
 
   // ALU Control
   alu_op_e     alu_operator_ex;
@@ -511,7 +517,8 @@ module ibex_core import ibex_pkg::*; #(
     .DataIndTiming  (DataIndTiming),
     .WritebackStage (WritebackStage),
     .BranchPredictor(BranchPredictor),
-    .MemECC         (MemECC)
+    .MemECC         (MemECC),
+    .CheriCapWidth  (CheriCapWidth)
   ) id_stage_i (
     .clk_i (clk_i),
     .rst_ni(rst_ni),
@@ -634,20 +641,24 @@ module ibex_core import ibex_pkg::*; #(
     .csr_rdata_i(csr_rdata),
 
     .rf_raddr_a_o      (rf_raddr_a),
-    .rf_rdata_a_i      (rf_rdata_a),
+    .rf_rdata_a_cap_i  (rf_rdata_a_cap),
+    .rf_rdata_a_int_i  (rf_rdata_a_int),
     .rf_raddr_b_o      (rf_raddr_b),
-    .rf_rdata_b_i      (rf_rdata_b),
+    .rf_rdata_b_cap_i  (rf_rdata_b_cap),
+    .rf_rdata_b_int_i  (rf_rdata_b_int),
     .rf_ren_a_o        (rf_ren_a),
     .rf_ren_b_o        (rf_ren_b),
     .rf_waddr_id_o     (rf_waddr_id),
-    .rf_wdata_id_o     (rf_wdata_id),
+    .rf_wdata_cap_id_o (rf_wdata_cap_id),
+    .rf_wdata_int_id_o (rf_wdata_int_id),
     .rf_we_id_o        (rf_we_id),
     .rf_rd_a_wb_match_o(rf_rd_a_wb_match),
     .rf_rd_b_wb_match_o(rf_rd_b_wb_match),
 
-    .rf_waddr_wb_i    (rf_waddr_wb),
-    .rf_wdata_fwd_wb_i(rf_wdata_fwd_wb),
-    .rf_write_wb_i    (rf_write_wb),
+    .rf_waddr_wb_i        (rf_waddr_wb),
+    .rf_wdata_cap_fwd_wb_i(rf_wdata_cap_fwd_wb),
+    .rf_wdata_int_fwd_wb_i(rf_wdata_int_fwd_wb),
+    .rf_write_wb_i        (rf_write_wb),
 
     .en_wb_o               (en_wb),
     .instr_type_wb_o       (instr_type_wb),
@@ -764,7 +775,7 @@ module ibex_core import ibex_pkg::*; #(
     .lsu_wdata_i   (lsu_wdata),
     .lsu_sign_ext_i(lsu_sign_ext),
 
-    .lsu_rdata_o      (rf_wdata_lsu),
+    .lsu_rdata_o      (rf_wdata_int_lsu), // TODO eventually will want a capability signal as well
     .lsu_rdata_valid_o(rf_we_lsu),
     .lsu_req_i        (lsu_req),
     .lsu_req_done_o   (lsu_req_done),
@@ -810,18 +821,22 @@ module ibex_core import ibex_pkg::*; #(
     .perf_instr_ret_wb_spec_o           (perf_instr_ret_wb_spec),
     .perf_instr_ret_compressed_wb_spec_o(perf_instr_ret_compressed_wb_spec),
 
-    .rf_waddr_id_i(rf_waddr_id),
-    .rf_wdata_id_i(rf_wdata_id),
-    .rf_we_id_i   (rf_we_id),
+    .rf_waddr_id_i    (rf_waddr_id),
+    .rf_wdata_cap_id_i(rf_wdata_cap_id),
+    .rf_wdata_int_id_i(rf_wdata_int_id),
+    .rf_we_id_i       (rf_we_id),
 
-    .rf_wdata_lsu_i(rf_wdata_lsu),
-    .rf_we_lsu_i   (rf_we_lsu),
+    .rf_wdata_cap_lsu_i(rf_wdata_cap_lsu),
+    .rf_wdata_int_lsu_i(rf_wdata_int_lsu),
+    .rf_we_lsu_i       (rf_we_lsu),
 
-    .rf_wdata_fwd_wb_o(rf_wdata_fwd_wb),
+    .rf_wdata_cap_fwd_wb_o(rf_wdata_cap_fwd_wb),
+    .rf_wdata_int_fwd_wb_o(rf_wdata_int_fwd_wb),
 
-    .rf_waddr_wb_o(rf_waddr_wb),
-    .rf_wdata_wb_o(rf_wdata_wb),
-    .rf_we_wb_o   (rf_we_wb),
+    .rf_waddr_wb_o    (rf_waddr_wb),
+    .rf_wdata_cap_wb_o(rf_wdata_cap_wb),
+    .rf_wdata_int_wb_o(rf_wdata_int_wb),
+    .rf_we_wb_o       (rf_we_wb),
 
     .lsu_resp_valid_i(lsu_resp_valid),
     .lsu_resp_err_i  (lsu_resp_err),
@@ -840,6 +855,9 @@ module ibex_core import ibex_pkg::*; #(
   assign rf_raddr_b_o     = rf_raddr_b;
 
   if (RegFileECC) begin : gen_regfile_ecc
+    // TODO  CHERI with ECC?
+    // for now the changes made here are just to get the system to compile;
+    // currently there is no implementation of CHERI with ECC
 
     // SEC_CM: DATA_REG_SW.INTEGRITY
     logic [1:0] rf_ecc_err_a, rf_ecc_err_b;
@@ -847,8 +865,8 @@ module ibex_core import ibex_pkg::*; #(
 
     // ECC checkbit generation for regiter file wdata
     prim_secded_inv_39_32_enc regfile_ecc_enc (
-      .data_i(rf_wdata_wb),
-      .data_o(rf_wdata_wb_ecc_o)
+      .data_i(rf_wdata_int_wb),
+      .data_o(rf_wdata_wb_ecc_o[31:0]) // TODO fix this
     );
 
     // ECC checking on register file rdata
@@ -866,8 +884,9 @@ module ibex_core import ibex_pkg::*; #(
     );
 
     // Assign read outputs - no error correction, just trigger an alert
-    assign rf_rdata_a = rf_rdata_a_ecc_i[31:0];
-    assign rf_rdata_b = rf_rdata_b_ecc_i[31:0];
+    // TODO with CHERI this is not tested and probably does not work
+    assign rf_rdata_a_int = rf_rdata_a_ecc_i[31:0];
+    assign rf_rdata_b_int = rf_rdata_b_ecc_i[31:0];
 
     // Calculate errors - qualify with WB forwarding to avoid xprop into the alert signal
     assign rf_ecc_err_a_id = |rf_ecc_err_a & rf_ren_a & ~rf_rd_a_wb_match;
@@ -880,22 +899,21 @@ module ibex_core import ibex_pkg::*; #(
     logic unused_rf_ren_a, unused_rf_ren_b;
     logic unused_rf_rd_a_wb_match, unused_rf_rd_b_wb_match;
 
-    logic [CheriCapWidth-1:0] rf_wdata_wb_cap;
-    logic [31:0]              rf_rdata_a_addr, rf_rdata_b_addr;
-
-    // Instantiate capability modification modules
-    module_wrap64_nullWithAddr rf_wdata_nullWithAddr (rf_wdata_wb, rf_wdata_wb_cap);
-    module_wrap64_getAddr      rf_rdata_a_getAddr    (rf_rdata_a_ecc_i, rf_rdata_a_addr);
-    module_wrap64_getAddr      rf_rdata_b_getAddr    (rf_rdata_b_ecc_i, rf_rdata_b_addr);
+    logic [CheriCapWidth-1:0] rf_wdata_cap_wb_from_int;
 
     assign unused_rf_ren_a         = rf_ren_a;
     assign unused_rf_ren_b         = rf_ren_b;
     assign unused_rf_rd_a_wb_match = rf_rd_a_wb_match;
     assign unused_rf_rd_b_wb_match = rf_rd_b_wb_match;
-    assign rf_wdata_wb_ecc_o       = rf_wdata_wb_cap;
-    assign rf_rdata_a              = rf_rdata_a_addr;
-    assign rf_rdata_b              = rf_rdata_b_addr;
+    assign rf_wdata_wb_ecc_o       = rf_wdata_cap_wb_from_int;
+    assign rf_rdata_a_cap          = rf_rdata_a_ecc_i;
+    assign rf_rdata_b_cap          = rf_rdata_b_ecc_i;
     assign rf_ecc_err_comb         = 1'b0;
+
+    // Instantiate capability modification modules
+    module_wrap64_nullWithAddr rf_wdata_wb_nullWithAddr (rf_wdata_int_wb, rf_wdata_cap_wb_from_int);
+    module_wrap64_getAddr      rf_rdata_a_getAddr       (rf_rdata_a_cap, rf_rdata_a_int);
+    module_wrap64_getAddr      rf_rdata_b_getAddr       (rf_rdata_b_cap, rf_rdata_b_int);
   end
 
   ///////////////////////
@@ -1252,7 +1270,7 @@ module ibex_core import ibex_pkg::*; #(
   assign rvfi_mem_wdata = rvfi_stage_mem_wdata[RVFI_STAGES-1];
 
   assign rvfi_rd_addr_wb  = rf_waddr_wb;
-  assign rvfi_rd_wdata_wb = rf_we_wb ? rf_wdata_wb : rf_wdata_lsu;
+  assign rvfi_rd_wdata_wb = rf_we_wb ? rf_wdata_int_wb : rf_wdata_int_lsu;
   assign rvfi_rd_we_wb    = rf_we_wb | rf_we_lsu;
 
   always_comb begin
@@ -1514,7 +1532,7 @@ module ibex_core import ibex_pkg::*; #(
   // Capture read data from LSU when it becomes valid
   always_comb begin
     if (lsu_resp_valid) begin
-      rvfi_mem_rdata_d = rf_wdata_lsu;
+      rvfi_mem_rdata_d = rf_wdata_int_lsu;
     end else begin
       rvfi_mem_rdata_d = rvfi_mem_rdata_q;
     end
