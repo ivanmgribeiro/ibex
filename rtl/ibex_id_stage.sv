@@ -98,6 +98,10 @@ module ibex_id_stage #(
   output ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_o,
   output ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_o,
 
+  // CHERI operands
+  output [CheriCapWidth-1:0]        cheri_operand_a_o,
+  output [CheriCapWidth-1:0]        cheri_operand_b_o,
+
   // CSR
   output logic                      csr_access_o,
   output ibex_pkg::csr_op_e         csr_op_o,
@@ -281,6 +285,11 @@ module ibex_id_stage #(
   imm_a_sel_e  imm_a_mux_sel;
   imm_b_sel_e  imm_b_mux_sel, imm_b_mux_sel_dec;
 
+  c_op_a_sel_e  cheri_op_a_mux_sel;
+  c_op_b_sel_e  cheri_op_b_mux_sel;
+  c_imm_b_sel_e cheri_imm_b_mux_sel;
+  logic [31:0] cheri_imm_b;
+
   // Multiplier Control
   logic        mult_en_id, mult_en_dec; // use integer multiplier
   logic        div_en_id, div_en_dec;   // use integer division or reminder
@@ -401,6 +410,47 @@ module ibex_id_stage #(
   // ALU MUX for Operand B
   assign alu_operand_b = (alu_op_b_mux_sel == OP_B_IMM) ? imm_b : rf_rdata_b_int_fwd;
 
+  // CHERI operand A muxing
+  always_comb begin
+    unique case (cheri_op_a_mux_sel)
+      CHERI_OP_A_REG_CAP: cheri_operand_a_o = rf_rdata_a_cap_fwd;
+      CHERI_OP_A_REG_NUM: cheri_operand_a_o = {{(CheriCapWidth-32){1'b0}}, rf_rdata_a_int_fwd};
+      // TODO need to use DDC here
+      CHERI_OP_A_REG_DDC: cheri_operand_a_o = rf_raddr_a_o == '0 ? '0 : rf_rdata_a_cap_fwd;
+      // TODO need to use PCC here
+      CHERI_OP_A_PCC:     cheri_operand_a_o = '0;
+      default:            cheri_operand_a_o = 'X;
+    endcase
+  end
+
+  // CHERI immediate mux for operand B
+  always_comb begin
+    cheri_imm_b = '0;
+    unique case (cheri_imm_b_mux_sel)
+      CHERI_IMM_B_INCR_PC: cheri_imm_b = 'h4;
+      CHERI_IMM_B_I:       cheri_imm_b = imm_i_type;
+      CHERI_IMM_B_S:       cheri_imm_b = imm_s_type;
+      CHERI_IMM_B_U:       cheri_imm_b = imm_u_type;
+      CHERI_IMM_B_RS2:     cheri_imm_b = {{27{1'b0}}, rf_raddr_b_o};
+      default:             cheri_imm_b = 'X;
+    endcase
+  end
+
+  // CHERI operand B muxing
+  always_comb begin
+    unique case (cheri_op_b_mux_sel)
+      CHERI_OP_B_IMM:     cheri_operand_b_o = {{(CheriCapWidth-32){1'b0}}, cheri_imm_b};
+      CHERI_OP_B_REG_CAP: cheri_operand_b_o = rf_rdata_b_cap_fwd;
+      CHERI_OP_B_REG_NUM: cheri_operand_b_o = {{(CheriCapWidth-32){1'b0}}, rf_rdata_b_int_fwd};
+      // TODO need to use DDC here
+      CHERI_OP_B_REG_DDC: cheri_operand_b_o = rf_raddr_b_o == '0 ? '0 : rf_rdata_b_cap_fwd;
+      // TODO need to use PCC here
+      CHERI_OP_B_PCC:     cheri_operand_b_o = '0;
+      default:            cheri_operand_b_o = 'X;
+    endcase
+  end
+
+
   /////////////////////////////////////////
   // Multicycle Operation Stage Register //
   /////////////////////////////////////////
@@ -510,9 +560,9 @@ module ibex_id_stage #(
 
     .use_cap_base_o(),
 
-    .cheri_op_a_mux_sel_o (),
-    .cheri_op_b_mux_sel_o (),
-    .cheri_imm_b_mux_sel_o(),
+    .cheri_op_a_mux_sel_o (cheri_op_a_mux_sel),
+    .cheri_op_b_mux_sel_o (cheri_op_b_mux_sel),
+    .cheri_imm_b_mux_sel_o(cheri_imm_b_mux_sel),
     .cheri_a_en_o         (),
     .cheri_b_en_o         (),
 
