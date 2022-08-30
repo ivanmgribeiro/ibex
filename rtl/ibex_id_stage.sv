@@ -487,15 +487,38 @@ module ibex_id_stage #(
     .multdiv_operator_o   (multdiv_operator),
     .multdiv_signed_mode_o(multdiv_signed_mode),
 
+    // CHERI
+    .cheri_en_o(),
+    .cheri_base_opcode_o(),
+    .cheri_threeop_opcode_o(),
+    .cheri_s_a_d_opcode_o(),
+
+    .cap_mode_i(),
+
+    .use_cap_base_o(),
+
+    .cheri_op_a_mux_sel_o (),
+    .cheri_op_b_mux_sel_o (),
+    .cheri_imm_b_mux_sel_o(),
+    .cheri_a_en_o         (),
+    .cheri_b_en_o         (),
+
     // CSRs
     .csr_access_o(csr_access_o),
     .csr_op_o    (csr_op_o),
+
+    // SCRs
+    .scr_access_o(),
+    .scr_op_o    (),
 
     // LSU
     .data_req_o           (lsu_req_dec),
     .data_we_o            (lsu_we),
     .data_type_o          (lsu_type),
     .data_sign_extension_o(lsu_sign_ext),
+    .mem_cap_access_o     (),
+
+    .mem_ddc_relative_o(),
 
     // jump/branches
     .jump_in_dec_o  (jump_in_dec),
