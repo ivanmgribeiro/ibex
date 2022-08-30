@@ -91,6 +91,12 @@ module ibex_id_stage #(
   output logic [31:0]               multdiv_operand_b_ex_o,
   output logic                      multdiv_ready_id_o,
 
+  // CHERI operation selection
+  output logic                            cheri_en_o,
+  output ibex_pkg::cheri_base_opcode_e    cheri_base_opcode_o,
+  output ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_o,
+  output ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_o,
+
   // CSR
   output logic                      csr_access_o,
   output ibex_pkg::csr_op_e         csr_op_o,
@@ -488,10 +494,10 @@ module ibex_id_stage #(
     .multdiv_signed_mode_o(multdiv_signed_mode),
 
     // CHERI
-    .cheri_en_o(),
-    .cheri_base_opcode_o(),
-    .cheri_threeop_opcode_o(),
-    .cheri_s_a_d_opcode_o(),
+    .cheri_en_o            (cheri_en_o),
+    .cheri_base_opcode_o   (cheri_base_opcode_o),
+    .cheri_threeop_opcode_o(cheri_threeop_opcode_o),
+    .cheri_s_a_d_opcode_o  (cheri_s_a_d_opcode_o),
 
     .cap_mode_i(),
 

@@ -85,6 +85,15 @@ module ibex_ex_block #(
   logic [33:0] multdiv_imd_val_d[2];
   logic [ 1:0] multdiv_imd_val_we;
 
+  // signals between the CHERI ALU and the integer ALU
+  logic [31:0] cheri_int_alu_operand_a;
+  logic [31:0] cheri_int_alu_operand_b;
+  alu_op_e     cheri_int_alu_operator;
+
+  alu_op_e     alu_operator;
+  logic [31:0] alu_operand_a;
+  logic [31:0] alu_operand_b;
+
   /*
     The multdiv_i output is never selected if RV32M=RV32MNone
     At synthesis time, all the combinational and sequential logic
@@ -100,6 +109,11 @@ module ibex_ex_block #(
   assign imd_val_d_o[0] = multdiv_sel ? multdiv_imd_val_d[0] : {2'b0, alu_imd_val_d[0]};
   assign imd_val_d_o[1] = multdiv_sel ? multdiv_imd_val_d[1] : {2'b0, alu_imd_val_d[1]};
   assign imd_val_we_o   = multdiv_sel ? multdiv_imd_val_we : alu_imd_val_we;
+
+  // Mux CHERI ALU outputs and ID stage inputs
+  assign alu_operator  = cheri_en_i == 1'b1 ? cheri_int_alu_operator  : alu_operator_i;
+  assign alu_operand_a = cheri_en_i == 1'b1 ? cheri_int_alu_operand_a : alu_operand_a_i;
+  assign alu_operand_b = cheri_en_i == 1'b1 ? cheri_int_alu_operand_b : alu_operand_b_i;
 
   assign alu_imd_val_q = '{imd_val_q_i[0][31:0], imd_val_q_i[1][31:0]};
 
@@ -133,9 +147,9 @@ module ibex_ex_block #(
   ibex_alu #(
     .RV32B(RV32B)
   ) alu_i (
-    .operator_i         (alu_operator_i),
-    .operand_a_i        (alu_operand_a_i),
-    .operand_b_i        (alu_operand_b_i),
+    .operator_i         (alu_operator),
+    .operand_a_i        (alu_operand_a),
+    .operand_b_i        (alu_operand_b),
     .instr_first_cycle_i(alu_instr_first_cycle_i),
     .imd_val_q_i        (alu_imd_val_q),
     .imd_val_we_o       (alu_imd_val_we),
@@ -227,10 +241,10 @@ module ibex_ex_block #(
     .operand_b_i   (cheri_operand_b_i),
 
     // TODO disconnected for now, connect these later on to the ALU
-    .alu_operand_a_o(),
-    .alu_operand_b_o(),
-    .alu_operator_o (),
-    .alu_result_i   (),
+    .alu_operand_a_o(cheri_int_alu_operand_a),
+    .alu_operand_b_o(cheri_int_alu_operand_b),
+    .alu_operator_o (cheri_int_alu_operator),
+    .alu_result_i   (alu_adder_result_ext[33:1]),
 
     .result_o  (cheri_result_o),
     .wrote_capability(cheri_wrote_capability),

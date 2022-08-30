@@ -266,6 +266,12 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] multdiv_operand_b_ex;
   logic        multdiv_ready_id;
 
+  // CHERI opcodes
+  logic                  cheri_en;
+  cheri_base_opcode_e    cheri_base_opcode;
+  cheri_threeop_funct7_e cheri_threeop_opcode;
+  cheri_s_a_d_funct5_e   cheri_s_a_d_opcode;
+
   // CSR control
   logic        csr_access;
   csr_op_e     csr_op;
@@ -569,6 +575,12 @@ module ibex_core import ibex_pkg::*; #(
     .multdiv_operand_b_ex_o  (multdiv_operand_b_ex),
     .multdiv_ready_id_o      (multdiv_ready_id),
 
+    // CHERI operation selection
+    .cheri_en_o              (cheri_en),
+    .cheri_base_opcode_o     (cheri_base_opcode),
+    .cheri_threeop_opcode_o  (cheri_threeop_opcode),
+    .cheri_s_a_d_opcode_o    (cheri_s_a_d_opcode),
+
     // CSR ID/EX
     .csr_access_o         (csr_access),
     .csr_op_o             (csr_op),
@@ -695,10 +707,10 @@ module ibex_core import ibex_pkg::*; #(
     .imd_val_q_i (imd_val_q_ex),
 
     // CHERI ALU
-    .cheri_en_i(),
-    .cheri_base_opcode_i(),
-    .cheri_threeop_opcode_i(),
-    .cheri_s_a_d_opcode_i(),
+    .cheri_en_i             (cheri_en),
+    .cheri_base_opcode_i    (cheri_base_opcode),
+    .cheri_threeop_opcode_i (cheri_threeop_opcode),
+    .cheri_s_a_d_opcode_i   (cheri_s_a_d_opcode),
 
     .cheri_operand_a_i(),
     .cheri_operand_b_i(),
