@@ -106,6 +106,10 @@ module ibex_id_stage #(
   input  [CheriCapWidth-1:0]        cheri_result_ex_i,
   input                             cheri_wrote_cap_i,
 
+  // CHERI exceptions
+  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_a_ex_i,
+  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_b_ex_i,
+
   // CSR
   output logic                      csr_access_o,
   output ibex_pkg::csr_op_e         csr_op_o,
@@ -701,6 +705,11 @@ module ibex_id_stage #(
     .store_err_i    (lsu_store_err_i),
     .wb_exception_o (wb_exception),
     .id_exception_o (id_exception),
+
+    // CHERI exceptions
+    .cheri_en_i             (cheri_en_o),
+    .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
+    .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
 
     // jump/branch control
     .branch_set_i     (branch_set),

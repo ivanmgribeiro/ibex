@@ -63,6 +63,12 @@ module ibex_controller #(
   output logic                  wb_exception_o,          // Instruction in WB taking an exception
   output logic                  id_exception_o,          // Instruction in ID taking an exception
 
+  // CHERI exception signals
+  input  logic                               cheri_en_i,
+  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_ex_i,
+  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_ex_i,
+  // TODO will need memory exceptions as well
+
   // jump/branch signals
   input  logic                  branch_set_i,            // branch set signal (branch definitely
                                                          // taken)
@@ -162,6 +168,7 @@ module ibex_controller #(
   logic ebrk_insn;
   logic csr_pipe_flush;
   logic instr_fetch_err;
+  logic cheri_exc;
 
 `ifndef SYNTHESIS
   // synopsys translate_off
@@ -202,12 +209,16 @@ module ibex_controller #(
 
   `ASSERT(IllegalInsnOnlyIfInsnValid, illegal_insn_i |-> instr_valid_i)
 
+  // Signals from decode don't take into account whether the instruction is
+  // valid or not, so filter it here
+  assign cheri_exc = cheri_en_i & instr_valid_i & (|cheri_exceptions_a_ex_i | |cheri_exceptions_b_ex_i);
+
   // exception requests
   // requests are flopped in exc_req_q.  This is cleared when controller is in
   // the FLUSH state so the cycle following exc_req_q won't remain set for an
   // exception request that has just been handled.
   // All terms in this expression are qualified by instr_valid_i
-  assign exc_req_d = (ecall_insn | ebrk_insn | illegal_insn_d | instr_fetch_err) &
+  assign exc_req_d = (ecall_insn | ebrk_insn | illegal_insn_d | instr_fetch_err | cheri_exc) &
                      (ctrl_fsm_cs != FLUSH);
 
   // LSU exception requests
