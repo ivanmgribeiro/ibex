@@ -102,6 +102,10 @@ module ibex_id_stage #(
   output [CheriCapWidth-1:0]        cheri_operand_a_o,
   output [CheriCapWidth-1:0]        cheri_operand_b_o,
 
+  // CHERI results
+  input  [CheriCapWidth-1:0]        cheri_result_ex_i,
+  input                             cheri_wrote_cap_i,
+
   // CSR
   output logic                      csr_access_o,
   output ibex_pkg::csr_op_e         csr_op_o,
@@ -476,13 +480,30 @@ module ibex_id_stage #(
   // Suppress register write if there is an illegal CSR access or instruction is not executing
   assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i;
 
+  // When the CHERI ALU writes a capability, we want to extract the address
+  // (ie the integer value) for RVFI
+  logic [31:0] rf_wdata_int_from_cap;
+  module_wrap64_getAddr rf_wdata_getAddr (cheri_result_ex_i, rf_wdata_int_from_cap);
+
   // Register file write data mux
   always_comb begin : rf_wdata_id_mux
-    unique case (rf_wdata_sel)
-      RF_WD_EX:  rf_wdata_int_id_o = result_ex_i;
-      RF_WD_CSR: rf_wdata_int_id_o = csr_rdata_i;
-      default:   rf_wdata_int_id_o = result_ex_i;
-    endcase
+    // TODO set this correctly
+    // for now, always get the capability result from the CHERI ALU
+    // in future, the capability should be a null capability with the integer
+    // as its address
+    rf_wdata_cap_id_o = cheri_result_ex_i;
+    rf_wcap_id_o      = cheri_wrote_cap_i & cheri_en_o;
+    if (cheri_en_o) begin
+      // the CHERI puts either an integer or a capability in the result line
+      // depending on the instruction; mux the integer result here here
+      rf_wdata_int_id_o = cheri_wrote_cap_i ? rf_wdata_int_from_cap : cheri_result_ex_i[31:0];
+    end else begin
+      unique case (rf_wdata_sel)
+        RF_WD_EX:  rf_wdata_int_id_o = result_ex_i;
+        RF_WD_CSR: rf_wdata_int_id_o = csr_rdata_i;
+        default:   rf_wdata_int_id_o = result_ex_i;
+      endcase
+    end
   end
 
   /////////////
