@@ -764,6 +764,12 @@ module ibex_decoder #(
                     // nothing to do here, but need to match so that they are
                     // not flagged as illegal
                   end
+                  C_ROUND_REP_LEN: begin
+                    // TODO implement this
+                  end
+                  C_REP_ALIGN_MASK: begin
+                    // TODO implement this
+                  end
                   default: begin
                     illegal_insn = 1'b1;
                   end
@@ -1442,6 +1448,14 @@ module ibex_decoder #(
                   C_GET_PERM, C_GET_TYPE, C_GET_BASE, C_GET_LEN, C_GET_TAG, C_GET_SEALED, C_GET_OFFSET,
                   C_GET_ADDR, C_GET_FLAGS, C_MOVE, C_CLEAR_TAG, CLEAR: begin
                     // nothing to do here; values have already been set before
+                  end
+
+                  C_ROUND_REP_LEN: begin
+                    // TODO implement this
+                  end
+
+                  C_REP_ALIGN_MASK: begin
+                    // TODO implement this
                   end
                   default: ;
                 endcase
