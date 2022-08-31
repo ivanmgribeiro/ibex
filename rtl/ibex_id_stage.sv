@@ -173,6 +173,7 @@ module ibex_id_stage #(
   output logic [CheriCapWidth-1:0]  rf_wdata_cap_id_o,
   output logic [31:0]               rf_wdata_int_id_o,
   output logic                      rf_we_id_o,
+  output logic                      rf_wcap_id_o,       // whether the write from ID is a capability write
   output logic                      rf_rd_a_wb_match_o,
   output logic                      rf_rd_b_wb_match_o,
 
@@ -180,6 +181,7 @@ module ibex_id_stage #(
   input  logic [4:0]                rf_waddr_wb_i,
   input  logic [CheriCapWidth-1:0]  rf_wdata_cap_fwd_wb_i,
   input  logic [31:0]               rf_wdata_int_fwd_wb_i,
+  input  logic                      rf_wcap_fwd_wb_i,
   input  logic                      rf_write_wb_i,
 
   output  logic                     en_wb_o,

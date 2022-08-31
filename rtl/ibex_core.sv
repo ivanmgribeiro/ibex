@@ -237,16 +237,20 @@ module ibex_core import ibex_pkg::*; #(
   // read data as this is too late for the forwarding path)
   logic [CheriCapWidth-1:0] rf_wdata_cap_fwd_wb;
   logic [31:0]              rf_wdata_int_fwd_wb;
+  logic                     rf_wcap_fwd_wb;
   logic [CheriCapWidth-1:0] rf_wdata_cap_lsu;
   logic [31:0]              rf_wdata_int_lsu;
   logic                     rf_we_wb;
+  logic                     rf_wcap_wb;
   logic                     rf_we_lsu;
+  logic                     rf_wcap_lsu = 0; // for now LSU cannot write capabilities
   logic                     rf_ecc_err_comb;
 
   logic [4:0]               rf_waddr_id;
   logic [CheriCapWidth-1:0] rf_wdata_cap_id;
   logic [31:0]              rf_wdata_int_id;
   logic                     rf_we_id;
+  logic                     rf_wcap_id;
   logic                     rf_rd_a_wb_match;
   logic                     rf_rd_b_wb_match;
 
@@ -660,12 +664,14 @@ module ibex_core import ibex_pkg::*; #(
     .rf_wdata_cap_id_o (rf_wdata_cap_id),
     .rf_wdata_int_id_o (rf_wdata_int_id),
     .rf_we_id_o        (rf_we_id),
+    .rf_wcap_id_o      (rf_wcap_id),
     .rf_rd_a_wb_match_o(rf_rd_a_wb_match),
     .rf_rd_b_wb_match_o(rf_rd_b_wb_match),
 
     .rf_waddr_wb_i        (rf_waddr_wb),
     .rf_wdata_cap_fwd_wb_i(rf_wdata_cap_fwd_wb),
     .rf_wdata_int_fwd_wb_i(rf_wdata_int_fwd_wb),
+    .rf_wcap_fwd_wb_i     (rf_wcap_fwd_wb),
     .rf_write_wb_i        (rf_write_wb),
 
     .en_wb_o               (en_wb),
@@ -833,18 +839,22 @@ module ibex_core import ibex_pkg::*; #(
     .rf_wdata_cap_id_i(rf_wdata_cap_id),
     .rf_wdata_int_id_i(rf_wdata_int_id),
     .rf_we_id_i       (rf_we_id),
+    .rf_wcap_id_i     (rf_wcap_id),
 
     .rf_wdata_cap_lsu_i(rf_wdata_cap_lsu),
     .rf_wdata_int_lsu_i(rf_wdata_int_lsu),
     .rf_we_lsu_i       (rf_we_lsu),
+    .rf_wcap_lsu_i     (rf_wcap_lsu),
 
     .rf_wdata_cap_fwd_wb_o(rf_wdata_cap_fwd_wb),
     .rf_wdata_int_fwd_wb_o(rf_wdata_int_fwd_wb),
+    .rf_wcap_fwd_wb_o     (rf_wcap_fwd_wb),
 
     .rf_waddr_wb_o    (rf_waddr_wb),
     .rf_wdata_cap_wb_o(rf_wdata_cap_wb),
     .rf_wdata_int_wb_o(rf_wdata_int_wb),
     .rf_we_wb_o       (rf_we_wb),
+    .rf_wcap_wb_o     (rf_wcap_wb),
 
     .lsu_resp_valid_i(lsu_resp_valid),
     .lsu_resp_err_i  (lsu_resp_err),
@@ -913,7 +923,7 @@ module ibex_core import ibex_pkg::*; #(
     assign unused_rf_ren_b         = rf_ren_b;
     assign unused_rf_rd_a_wb_match = rf_rd_a_wb_match;
     assign unused_rf_rd_b_wb_match = rf_rd_b_wb_match;
-    assign rf_wdata_wb_ecc_o       = rf_wdata_cap_wb_from_int;
+    assign rf_wdata_wb_ecc_o       = rf_wcap_wb ? rf_wdata_cap_wb : rf_wdata_cap_wb_from_int;
     assign rf_rdata_a_cap          = rf_rdata_a_ecc_i;
     assign rf_rdata_b_cap          = rf_rdata_b_ecc_i;
     assign rf_ecc_err_comb         = 1'b0;
