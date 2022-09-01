@@ -305,6 +305,17 @@ module ibex_core import ibex_pkg::*; #(
                                        // with wrong priviledge level,
                                        // or missing write permissions
 
+  // SCR control;
+  logic                     scr_access;
+  scr_op_e                  scr_op;
+  logic                     scr_op_en;
+  scr_num_e                 scr_addr;
+  logic [CheriCapWidth-1:0] scr_rdata;
+  logic [CheriCapWidth-1:0] scr_wdata;
+
+  // SCRs
+  logic [CheriCapWidth-1:0] scr_ddc;
+
   // Data Memory Control
   logic        lsu_we;
   logic [1:0]  lsu_type;
@@ -631,6 +642,14 @@ module ibex_core import ibex_pkg::*; #(
     .csr_mstatus_tw_i     (csr_mstatus_tw),
     .illegal_csr_insn_i   (illegal_csr_insn_id),
     .data_ind_timing_i    (data_ind_timing),
+
+    // SCR
+    .scr_access_o         (scr_access),
+    .scr_op_en_o          (scr_op_en),
+    .scr_op_o             (scr_op),
+
+    // SCR values
+    .scr_ddc_i            (scr_ddc),
 
     // LSU
     .lsu_req_o     (lsu_req),  // to load store unit
@@ -1040,7 +1059,8 @@ module ibex_core import ibex_pkg::*; #(
     .PMPNumRegions    (PMPNumRegions),
     .RV32E            (RV32E),
     .RV32M            (RV32M),
-    .RV32B            (RV32B)
+    .RV32B            (RV32B),
+    .CheriCapWidth    (CheriCapWidth)
   ) cs_registers_i (
     .clk_i (clk_i),
     .rst_ni(rst_ni),
@@ -1062,6 +1082,17 @@ module ibex_core import ibex_pkg::*; #(
     .csr_op_i    (csr_op),
     .csr_op_en_i (csr_op_en),
     .csr_rdata_o (csr_rdata),
+
+    // Interface to SCRs
+    .scr_access_i (scr_access),
+    .scr_addr_i   (scr_addr),
+    .scr_wdata_i  (scr_wdata),
+    .scr_op_i     (scr_op),
+    .scr_op_en_i  (scr_op_en),
+    .scr_rdata_o  (scr_rdata),
+
+    // SCR values
+    .scr_ddc_o    (scr_ddc),
 
     // Interrupt related control signals
     .irq_software_i   (irq_software_i),

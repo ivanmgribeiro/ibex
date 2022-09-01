@@ -126,6 +126,14 @@ module ibex_id_stage #(
   input  logic                      illegal_csr_insn_i,
   input  logic                      data_ind_timing_i,
 
+  // SCR
+  output logic                      scr_access_o,
+  output ibex_pkg::scr_op_e         scr_op_o,
+  output logic                      scr_op_en_o,
+
+  // SCR values
+  input logic [CheriCapWidth-1:0]   scr_ddc_i,
+
   // Interface to load store unit
   output logic                      lsu_req_o,
   output logic                      lsu_we_o,
@@ -425,8 +433,7 @@ module ibex_id_stage #(
     unique case (cheri_op_a_mux_sel)
       CHERI_OP_A_REG_CAP: cheri_operand_a_o = rf_rdata_a_cap_fwd;
       CHERI_OP_A_REG_NUM: cheri_operand_a_o = {{(CheriCapWidth-32){1'b0}}, rf_rdata_a_int_fwd};
-      // TODO need to use DDC here
-      CHERI_OP_A_REG_DDC: cheri_operand_a_o = rf_raddr_a_o == '0 ? '0 : rf_rdata_a_cap_fwd;
+      CHERI_OP_A_REG_DDC: cheri_operand_a_o = rf_raddr_a_o == '0 ? scr_ddc_i : rf_rdata_a_cap_fwd;
       // TODO need to use PCC here
       CHERI_OP_A_PCC:     cheri_operand_a_o = '0;
       default:            cheri_operand_a_o = 'X;
@@ -452,8 +459,7 @@ module ibex_id_stage #(
       CHERI_OP_B_IMM:     cheri_operand_b_o = {{(CheriCapWidth-32){1'b0}}, cheri_imm_b};
       CHERI_OP_B_REG_CAP: cheri_operand_b_o = rf_rdata_b_cap_fwd;
       CHERI_OP_B_REG_NUM: cheri_operand_b_o = {{(CheriCapWidth-32){1'b0}}, rf_rdata_b_int_fwd};
-      // TODO need to use DDC here
-      CHERI_OP_B_REG_DDC: cheri_operand_b_o = rf_raddr_b_o == '0 ? '0 : rf_rdata_b_cap_fwd;
+      CHERI_OP_B_REG_DDC: cheri_operand_b_o = rf_raddr_b_o == '0 ? scr_ddc_i : rf_rdata_b_cap_fwd;
       // TODO need to use PCC here
       CHERI_OP_B_PCC:     cheri_operand_b_o = '0;
       default:            cheri_operand_b_o = 'X;
@@ -598,8 +604,8 @@ module ibex_id_stage #(
     .csr_op_o    (csr_op_o),
 
     // SCRs
-    .scr_access_o(),
-    .scr_op_o    (),
+    .scr_access_o(scr_access_o),
+    .scr_op_o    (scr_op_o),
 
     // LSU
     .data_req_o           (lsu_req_dec),
@@ -770,7 +776,9 @@ module ibex_id_stage #(
   // csv_access_o is set when CSR access instruction is present and is used to compute whether a CSR
   // access is illegal. A combinational loop would be created if csr_op_en_o was used along (as
   // asserting it for an illegal csr access would result in a flush that would need to deassert it).
+  // The same applies to SCRs
   assign csr_op_en_o             = csr_access_o & instr_executing & instr_id_done_o;
+  assign scr_op_en_o             = scr_access_o & instr_executing & instr_id_done_o;
 
   assign alu_operator_ex_o           = alu_operator;
   assign alu_operand_a_ex_o          = alu_operand_a;

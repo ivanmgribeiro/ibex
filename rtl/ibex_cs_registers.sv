@@ -26,7 +26,8 @@ module ibex_cs_registers #(
   parameter int unsigned      PMPNumRegions     = 4,
   parameter bit               RV32E             = 0,
   parameter ibex_pkg::rv32m_e RV32M             = ibex_pkg::RV32MFast,
-  parameter ibex_pkg::rv32b_e RV32B             = ibex_pkg::RV32BNone
+  parameter ibex_pkg::rv32b_e RV32B             = ibex_pkg::RV32BNone,
+  parameter int unsigned      CheriCapWidth     = 91
 ) (
   // Clock and Reset
   input  logic                 clk_i,
@@ -52,6 +53,18 @@ module ibex_cs_registers #(
   input  ibex_pkg::csr_op_e    csr_op_i,
   input                        csr_op_en_i,
   output logic [31:0]          csr_rdata_o,
+
+  // Interface to Special Capability Registers (SCRs)
+  // SRAM like, as above
+  input  logic                     scr_access_i,
+  input  ibex_pkg::scr_num_e       scr_addr_i,
+  input  logic [CheriCapWidth-1:0] scr_wdata_i,
+  input  ibex_pkg::scr_op_e        scr_op_i,
+  input  logic                     scr_op_en_i,
+  output logic [CheriCapWidth-1:0] scr_rdata_o,
+
+  // DDC should always be accessible
+  output logic [CheriCapWidth-1:0] scr_ddc_o,
 
   // interrupts
   input  logic                 irq_software_i,
@@ -188,6 +201,10 @@ module ibex_cs_registers #(
   // Interrupt and exception control signals
   logic [31:0] exception_pc;
 
+  // Default Data Capability
+  logic [CheriCapWidth-1:0] scr_ddc_q, scr_ddc_d;
+  logic                     scr_ddc_en;
+
   // CSRs
   priv_lvl_e   priv_lvl_q, priv_lvl_d;
   status_t     mstatus_q, mstatus_d;
@@ -265,6 +282,9 @@ module ibex_cs_registers #(
   logic        csr_we_int;
   logic        csr_wr;
 
+  // SCR update logic
+  logic scr_we;
+
   // Access violation signals
   logic        dbg_csr;
   logic        illegal_csr;
@@ -304,6 +324,10 @@ module ibex_cs_registers #(
     csr_rdata_int = '0;
     illegal_csr   = 1'b0;
     dbg_csr       = 1'b0;
+    scr_rdata_o   = '0;
+
+    // DDC should always be accessible
+    scr_ddc_o     = scr_ddc_q;
 
     unique case (csr_addr_i)
       // mvendorid: encoding of manufacturer/provider
@@ -508,6 +532,11 @@ module ibex_cs_registers #(
         illegal_csr = 1'b1;
       end
     endcase
+
+    unique case (scr_addr_i)
+      SCR_DDC: scr_rdata_o = scr_ddc_q;
+      default: scr_rdata_o = 'X;
+    endcase
   end
 
   // write logic
@@ -548,6 +577,9 @@ module ibex_cs_registers #(
     mcountinhibit_we = 1'b0;
     mhpmcounter_we   = '0;
     mhpmcounterh_we  = '0;
+
+    scr_ddc_en = 1'b0;
+    scr_ddc_d = scr_ddc_q;
 
     cpuctrl_we       = 1'b0;
     cpuctrl_d        = cpuctrl_q;
@@ -656,6 +688,16 @@ module ibex_cs_registers #(
           cpuctrl_we = 1'b1;
         end
 
+        default:;
+      endcase
+    end
+
+    if (scr_we) begin
+      unique case (scr_addr_i)
+        SCR_DDC: begin
+          scr_ddc_d = scr_wdata_i;
+          scr_ddc_en = 1'b1;
+        end
         default:;
       endcase
     end
@@ -784,6 +826,8 @@ module ibex_cs_registers #(
   assign csr_we_int  = csr_wr & csr_op_en_i & ~illegal_csr_insn_o;
 
   assign csr_rdata_o = csr_rdata_int;
+
+  assign scr_we = scr_op_en_i & (scr_op_i inside {SCR_WRITE, SCR_READWRITE});
 
   // directly output some registers
   assign csr_mepc_o  = mepc_q;
@@ -1015,6 +1059,21 @@ module ibex_cs_registers #(
     .wr_data_i (mstack_cause_d),
     .wr_en_i   (mstack_en),
     .rd_data_o (mstack_cause_q),
+    .rd_error_o()
+  );
+
+  // CHERI SCR Instantiations
+  // DDC
+  ibex_csr #(
+    .Width    (CheriCapWidth),
+    .ShadowCopy(1'b0),
+    .ResetValue(91'h40000000003FFDF690003F0)
+  ) u_scr_ddc (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (scr_ddc_d),
+    .wr_en_i   (scr_ddc_en),
+    .rd_data_o (scr_ddc_q),
     .rd_error_o()
   );
 
