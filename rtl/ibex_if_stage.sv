@@ -27,7 +27,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   parameter lfsr_perm_t  RndCnstLfsrPerm   = RndCnstLfsrPermDefault,
   parameter bit          BranchPredictor   = 1'b0,
   parameter bit          MemECC            = 1'b0,
-  parameter int unsigned MemDataWidth      = MemECC ? 32 + 7 : 32
+  parameter int unsigned MemDataWidth      = MemECC ? 32 + 7 : 32,
+  parameter int unsigned CheriCapWidth     = 91,
+  parameter bit [CheriCapWidth-1:0] CheriAlmightyCap  = 91'h0,
+  parameter bit [CheriCapWidth-1:0] CheriNullCap      = 91'h0
 ) (
   input  logic                         clk_i,
   input  logic                         rst_ni,
@@ -76,7 +79,9 @@ module ibex_if_stage import ibex_pkg::*; #(
                                                                 // is an invalid instr
   output logic                        dummy_instr_id_o,         // Instruction is a dummy
   output logic [31:0]                 pc_if_o,
+  output logic [CheriCapWidth-1:0]    pcc_if_o,
   output logic [31:0]                 pc_id_o,
+  output logic [CheriCapWidth-1:0]    pcc_id_o,
   input  logic                        pmp_err_if_i,
   input  logic                        pmp_err_if_plus2_i,
 
@@ -154,6 +159,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              if_instr_err_plus2;
 
   logic       [31:0] exc_pc;
+  logic [CheriCapWidth:0] exc_pcc;
 
   logic              if_id_pipe_reg_we; // IF-ID pipeline reg write enable
 
@@ -174,6 +180,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic        [7:0] unused_boot_addr;
   logic        [7:0] unused_csr_mtvec;
   logic              unused_exc_cause;
+
+  logic              unused_pcc_setOffset_exact;
 
   assign unused_boot_addr = boot_addr_i[7:0];
   assign unused_csr_mtvec = csr_mtvec_i[7:0];
@@ -383,6 +391,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   assign branch_req  = pc_set_i | predict_branch_taken;
 
   assign pc_if_o     = if_instr_addr;
+  // pcc_if_o is assigned in the CHERI instantiations;
   assign if_busy_o   = prefetch_busy;
 
   // PMP errors
@@ -508,6 +517,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         instr_is_compressed_id_o <= '0;
         illegal_c_insn_id_o      <= '0;
         pc_id_o                  <= '0;
+        pcc_id_o                 <= CheriNullCap;
       end else if (if_id_pipe_reg_we) begin
         instr_rdata_id_o         <= instr_out;
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -518,6 +528,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         instr_is_compressed_id_o <= instr_is_compressed_out;
         illegal_c_insn_id_o      <= illegal_c_instr_out;
         pc_id_o                  <= pc_if_o;
+        pcc_id_o                 <= pcc_if_o;
       end
     end
   end else begin : g_instr_rdata_nr
@@ -532,6 +543,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         instr_is_compressed_id_o <= instr_is_compressed_out;
         illegal_c_insn_id_o      <= illegal_c_instr_out;
         pc_id_o                  <= pc_if_o;
+        pcc_id_o                 <= pcc_if_o;
       end
     end
   end
@@ -683,6 +695,10 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign if_instr_bus_err = fetch_err;
     assign fetch_ready = id_in_ready_i & ~stall_dummy_instr;
   end
+
+
+  // CHERI module instantiations
+  module_wrap64_setOffset almighty_setOffset(CheriAlmightyCap, pc_if_o, {unused_pcc_setOffset_exact, pcc_if_o});
 
   ////////////////
   // Assertions //

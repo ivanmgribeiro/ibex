@@ -38,6 +38,8 @@ module ibex_core import ibex_pkg::*; #(
   parameter bit          SecureIbex        = 1'b0,
   parameter bit          DummyInstructions = 1'b0,
   parameter int unsigned CheriCapWidth     = 91,
+  parameter bit [CheriCapWidth-1:0] CheriAlmightyCap  = 91'h0,
+  parameter bit [CheriCapWidth-1:0] CheriNullCap      = 91'h0,
   parameter bit          RegFileECC        = 1'b0,
   parameter int unsigned RegFileDataWidth  = 32,
   parameter bit          MemECC            = 1'b0,
@@ -176,8 +178,11 @@ module ibex_core import ibex_pkg::*; #(
   logic        instr_fetch_err_plus2;          // Instruction error is misaligned
   logic        illegal_c_insn_id;              // Illegal compressed instruction sent to ID stage
   logic [31:0] pc_if;                          // Program counter in IF stage
+  logic [CheriCapWidth-1:0] pcc_if;            // Program counter capability in IF stage
   logic [31:0] pc_id;                          // Program counter in ID stage
+  logic [CheriCapWidth-1:0] pcc_id;            // Program counter capability in ID stage
   logic [31:0] pc_wb;                          // Program counter in WB stage
+  logic [CheriCapWidth-1:0] pcc_wb;            // Program counter capability in WB stage
   logic [33:0] imd_val_d_ex[2];                // Intermediate register for multicycle Ops
   logic [33:0] imd_val_q_ex[2];                // Intermediate register for multicycle Ops
   logic [1:0]  imd_val_we_ex;
@@ -428,7 +433,10 @@ module ibex_core import ibex_pkg::*; #(
     .RndCnstLfsrPerm  (RndCnstLfsrPerm),
     .BranchPredictor  (BranchPredictor),
     .MemECC           (MemECC),
-    .MemDataWidth     (MemDataWidth)
+    .MemDataWidth     (MemDataWidth),
+    .CheriCapWidth    (CheriCapWidth),
+    .CheriAlmightyCap (CheriAlmightyCap),
+    .CheriNullCap     (CheriNullCap)
   ) if_stage_i (
     .clk_i (clk_i),
     .rst_ni(rst_ni),
@@ -470,7 +478,9 @@ module ibex_core import ibex_pkg::*; #(
     .illegal_c_insn_id_o     (illegal_c_insn_id),
     .dummy_instr_id_o        (dummy_instr_id),
     .pc_if_o                 (pc_if),
+    .pcc_if_o                (pcc_if),
     .pc_id_o                 (pc_id),
+    .pcc_id_o                (pcc_id),
     .pmp_err_if_i            (pmp_req_err[PMP_I]),
     .pmp_err_if_plus2_i      (pmp_req_err[PMP_I2]),
 
@@ -582,7 +592,8 @@ module ibex_core import ibex_pkg::*; #(
     .instr_fetch_err_plus2_i(instr_fetch_err_plus2),
     .illegal_c_insn_i       (illegal_c_insn_id),
 
-    .pc_id_i(pc_id),
+    .pc_id_i (pc_id),
+    .pcc_id_i(pcc_id),
 
     // Stalls
     .ex_valid_i      (ex_valid),
@@ -857,6 +868,7 @@ module ibex_core import ibex_pkg::*; #(
     .en_wb_i                 (en_wb),
     .instr_type_wb_i         (instr_type_wb),
     .pc_id_i                 (pc_id),
+    .pcc_id_i                (pcc_id),
     .instr_is_compressed_id_i(instr_is_compressed_id),
     .instr_perf_count_id_i   (instr_perf_count_id),
 
@@ -865,6 +877,7 @@ module ibex_core import ibex_pkg::*; #(
     .outstanding_load_wb_o              (outstanding_load_wb),
     .outstanding_store_wb_o             (outstanding_store_wb),
     .pc_wb_o                            (pc_wb),
+    .pcc_wb_o                           (pcc_wb),
     .perf_instr_ret_wb_o                (perf_instr_ret_wb),
     .perf_instr_ret_compressed_wb_o     (perf_instr_ret_compressed_wb),
     .perf_instr_ret_wb_spec_o           (perf_instr_ret_wb_spec),
@@ -1122,9 +1135,12 @@ module ibex_core import ibex_pkg::*; #(
     .debug_ebreaku_o    (debug_ebreaku),
     .trigger_match_o    (trigger_match),
 
-    .pc_if_i(pc_if),
-    .pc_id_i(pc_id),
-    .pc_wb_i(pc_wb),
+    .pc_if_i (pc_if),
+    .pcc_if_i(pcc_if),
+    .pc_id_i (pc_id),
+    .pcc_id_i(pcc_id),
+    .pc_wb_i (pc_wb),
+    .pcc_wb_i(pcc_wb),
 
     .data_ind_timing_o    (data_ind_timing),
     .dummy_instr_en_o     (dummy_instr_en),

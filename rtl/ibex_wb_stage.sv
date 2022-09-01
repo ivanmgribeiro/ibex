@@ -17,7 +17,8 @@
 module ibex_wb_stage #(
   parameter bit          ResetAll       = 1'b0,
   parameter bit          WritebackStage = 1'b0,
-  parameter int unsigned CheriCapWidth  = 91
+  parameter int unsigned CheriCapWidth  = 91,
+  parameter bit [CheriCapWidth-1:0] CheriNullCap   = 91'h0
 ) (
   input  logic                     clk_i,
   input  logic                     rst_ni,
@@ -25,6 +26,7 @@ module ibex_wb_stage #(
   input  logic                     en_wb_i,
   input  ibex_pkg::wb_instr_type_e instr_type_wb_i,
   input  logic [31:0]              pc_id_i,
+  input  logic [CheriCapWidth-1:0] pcc_id_i,
   input  logic                     instr_is_compressed_id_i,
   input  logic                     instr_perf_count_id_i,
 
@@ -33,6 +35,7 @@ module ibex_wb_stage #(
   output logic                     outstanding_load_wb_o,
   output logic                     outstanding_store_wb_o,
   output logic [31:0]              pc_wb_o,
+  output logic [CheriCapWidth-1:0] pcc_wb_o,
   output logic                     perf_instr_ret_wb_o,
   output logic                     perf_instr_ret_compressed_wb_o,
   output logic                     perf_instr_ret_wb_spec_o,
@@ -85,6 +88,7 @@ module ibex_wb_stage #(
 
     logic                     wb_valid_q;
     logic [31:0]              wb_pc_q;
+    logic [CheriCapWidth-1:0] wb_pcc_q;
     logic                     wb_compressed_q;
     logic                     wb_count_q;
     wb_instr_type_e           wb_instr_type_q;
@@ -117,6 +121,7 @@ module ibex_wb_stage #(
           rf_wdata_int_wb_q   <= '0;
           wb_instr_type_q     <= wb_instr_type_e'(0);
           wb_pc_q             <= '0;
+          wb_pcc_q            <= CheriNullCap;
           wb_compressed_q     <= '0;
           wb_count_q          <= '0;
         end else if (en_wb_i) begin
@@ -127,6 +132,7 @@ module ibex_wb_stage #(
           rf_wdata_int_wb_q   <= rf_wdata_int_id_i;
           wb_instr_type_q     <= instr_type_wb_i;
           wb_pc_q             <= pc_id_i;
+          wb_pcc_q            <= pcc_id_i;
           wb_compressed_q     <= instr_is_compressed_id_i;
           wb_count_q          <= instr_perf_count_id_i;
         end
@@ -141,6 +147,7 @@ module ibex_wb_stage #(
           rf_wdata_int_wb_q   <= rf_wdata_int_id_i;
           wb_instr_type_q     <= instr_type_wb_i;
           wb_pc_q             <= pc_id_i;
+          wb_pcc_q            <= pcc_id_i;
           wb_compressed_q     <= instr_is_compressed_id_i;
           wb_count_q          <= instr_perf_count_id_i;
         end
@@ -162,7 +169,8 @@ module ibex_wb_stage #(
     assign outstanding_load_wb_o  = wb_valid_q & (wb_instr_type_q == WB_INSTR_LOAD);
     assign outstanding_store_wb_o = wb_valid_q & (wb_instr_type_q == WB_INSTR_STORE);
 
-    assign pc_wb_o = wb_pc_q;
+    assign pc_wb_o  = wb_pc_q;
+    assign pcc_wb_o = wb_pcc_q;
 
     assign instr_done_wb_o = wb_valid_q & wb_done;
 
@@ -204,21 +212,24 @@ module ibex_wb_stage #(
     // Unused Writeback stage only IO & wiring
     // Assign inputs and internal wiring to unused signals to satisfy lint checks
     // Tie-off outputs to constant values
-    logic           unused_clk;
-    logic           unused_rst;
-    wb_instr_type_e unused_instr_type_wb;
-    logic [31:0]    unused_pc_id;
+    logic                     unused_clk;
+    logic                     unused_rst;
+    wb_instr_type_e           unused_instr_type_wb;
+    logic [31:0]              unused_pc_id;
+    logic [CheriCapWidth-1:0] unused_pcc_id;
 
     assign unused_clk            = clk_i;
     assign unused_rst            = rst_ni;
     assign unused_instr_type_wb  = instr_type_wb_i;
     assign unused_pc_id          = pc_id_i;
+    assign unused_pcc_id         = pcc_id_i;
 
     assign outstanding_load_wb_o  = 1'b0;
     assign outstanding_store_wb_o = 1'b0;
     assign pc_wb_o                = '0;
+    assign pcc_wb_o               = CheriNullCap;
     assign rf_write_wb_o          = 1'b0;
-    assign rf_wdata_cap_fwd_wb_o  = {CheriCapWidth{1'b0}};
+    assign rf_wdata_cap_fwd_wb_o  = {CheriCapWidth{1'b0}}; // TODO use CheriNullCap
     assign rf_wdata_int_fwd_wb_o  = 32'b0;
     assign instr_done_wb_o        = 1'b0;
   end

@@ -93,9 +93,12 @@ module ibex_cs_registers #(
   output logic                 debug_ebreaku_o,
   output logic                 trigger_match_o,
 
-  input  logic [31:0]          pc_if_i,
-  input  logic [31:0]          pc_id_i,
-  input  logic [31:0]          pc_wb_i,
+  input  logic [31:0]              pc_if_i,
+  input  logic [CheriCapWidth-1:0] pcc_if_i,
+  input  logic [31:0]              pc_id_i,
+  input  logic [CheriCapWidth-1:0] pcc_id_i,
+  input  logic [31:0]              pc_wb_i,
+  input  logic [CheriCapWidth-1:0] pcc_wb_i,
 
   // CPU control bits
   output logic                 data_ind_timing_o,

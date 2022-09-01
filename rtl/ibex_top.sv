@@ -281,6 +281,8 @@ module ibex_top import ibex_pkg::*; #(
     .SecureIbex       (SecureIbex),
     .DummyInstructions(DummyInstructions),
     .CheriCapWidth    (CheriCapWidth),
+    .CheriAlmightyCap (CheriAlmightyCap),
+    .CheriNullCap     (CheriNullCap),
     .RegFileECC       (RegFileECC),
     .RegFileDataWidth (RegFileDataWidth),
     .MemECC           (MemECC),
