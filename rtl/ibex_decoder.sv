@@ -771,15 +771,10 @@ module ibex_decoder #(
                     end
                   end
                   C_GET_PERM, C_GET_TYPE, C_GET_BASE, C_GET_LEN, C_GET_TAG, C_GET_SEALED, C_GET_OFFSET,
-                  C_GET_ADDR, C_GET_FLAGS, C_MOVE, C_CLEAR_TAG, CLEAR, C_SEAL_ENTRY: begin
+                  C_GET_ADDR, C_GET_FLAGS, C_MOVE, C_CLEAR_TAG, CLEAR, C_SEAL_ENTRY, C_ROUND_REP_LEN,
+                  C_REP_ALIGN_MASK: begin
                     // nothing to do here, but need to match so that they are
                     // not flagged as illegal
-                  end
-                  C_ROUND_REP_LEN: begin
-                    // TODO implement this
-                  end
-                  C_REP_ALIGN_MASK: begin
-                    // TODO implement this
                   end
                   default: begin
                     illegal_insn = 1'b1;
@@ -1471,13 +1466,8 @@ module ibex_decoder #(
                   C_GET_ADDR, C_GET_FLAGS, C_MOVE, C_CLEAR_TAG, CLEAR, C_SEAL_ENTRY: begin
                     // nothing to do here; values have already been set before
                   end
-
-                  C_ROUND_REP_LEN: begin
-                    // TODO implement this
-                  end
-
-                  C_REP_ALIGN_MASK: begin
-                    // TODO implement this
+                  C_ROUND_REP_LEN, C_REP_ALIGN_MASK: begin
+                    cheri_op_a_mux_sel_o = CHERI_OP_A_REG_NUM;
                   end
                   default: ;
                 endcase

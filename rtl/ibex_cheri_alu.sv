@@ -162,6 +162,12 @@ module ibex_cheri_alu #(
   logic b_isInBounds_isTopIncluded_i;
   logic b_isInBounds_o;
 
+  logic [IntWidth-1:0] a_getRepAlignMask_i;
+  logic [IntWidth-1:0] a_getRepAlignMask_o;
+
+  logic [IntWidth-1:0] a_getRepLen_i;
+  logic [IntWidth-1:0] a_getRepLen_o;
+
   //////////////////////////
   // CHERI ALU operations //
   //////////////////////////
@@ -768,6 +774,18 @@ module ibex_cheri_alu #(
                 exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
               end
 
+              C_ROUND_REP_LEN: begin
+                a_getRepLen_i = operand_a_i[IntWidth-1:0];
+                result_o[IntWidth-1:0] = a_getRepLen_o;
+                wrote_capability = 1'b0;
+              end
+
+              C_REP_ALIGN_MASK: begin
+                a_getRepAlignMask_i = operand_a_i[IntWidth-1:0];
+                result_o[IntWidth-1:0] = a_getRepAlignMask_o;
+                wrote_capability = 1'b0;
+              end
+
               default: begin
                 //$display("something went wrong in the ibex_alu");
               end
@@ -963,6 +981,17 @@ module_wrap64_isInBounds module_isInBounds_b (
       .wrap64_isInBounds_cap (operand_b_i),
       .wrap64_isInBounds_isTopIncluded(b_isInBounds_isTopIncluded_i),
       .wrap64_isInBounds (b_isInBounds_o));
+
+module_wrap64_getRepresentableAlignmentMask module_getRepresentableAlignmentMask_a (
+      .wrap64_getRepresentableAlignmentMask_dummy  ('X),
+      .wrap64_getRepresentableAlignmentMask_length (a_getRepAlignMask_i),
+      .wrap64_getRepresentableAlignmentMask        (a_getRepAlignMask_o));
+
+module_wrap64_getRepresentableLength module_getRepresentableLength_a (
+      .wrap64_getRepresentableLength_dummy  ('X),
+      .wrap64_getRepresentableLength_length (a_getRepLen_i),
+      .wrap64_getRepresentableLength        (a_getRepLen_o));
+
 
 
   // TODO
