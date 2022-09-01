@@ -693,6 +693,17 @@ module ibex_cheri_alu #(
                 end
               end
 
+              C_SEAL_ENTRY: begin
+                a_setKind_cap_i = operand_a_i;
+                a_setKind_i = 7'h1E;
+                result_o = a_setKind_o;
+                wrote_capability = 1'b1;
+
+                exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
+                exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
+                exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
+              end
+
               default: begin
                 //$display("something went wrong in the ibex_alu");
               end
