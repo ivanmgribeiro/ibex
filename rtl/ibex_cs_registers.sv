@@ -27,7 +27,9 @@ module ibex_cs_registers #(
   parameter bit               RV32E             = 0,
   parameter ibex_pkg::rv32m_e RV32M             = ibex_pkg::RV32MFast,
   parameter ibex_pkg::rv32b_e RV32B             = ibex_pkg::RV32BNone,
-  parameter int unsigned      CheriCapWidth     = 91
+  parameter int unsigned            CheriCapWidth    = 91,
+  parameter bit [CheriCapWidth-1:0] CheriAlmightyCap = 91'h0,
+  parameter bit [CheriCapWidth-1:0] CheriNullCap     = 91'h0
 ) (
   // Clock and Reset
   input  logic                 clk_i,
@@ -202,11 +204,26 @@ module ibex_cs_registers #(
   } cpu_ctrl_t;
 
   // Interrupt and exception control signals
-  logic [31:0] exception_pc;
+  logic [31:0]              exception_pc;
+  logic [CheriCapWidth-1:0] exception_pcc;
 
+  // SCRs
   // Default Data Capability
   logic [CheriCapWidth-1:0] scr_ddc_q, scr_ddc_d;
   logic                     scr_ddc_en;
+  // Machine Trap Code Capability
+  logic [CheriCapWidth-1:0] scr_mtcc_q, scr_mtcc_d;
+  logic                     scr_mtcc_en;
+  // Machine Trap Data Capability
+  logic [CheriCapWidth-1:0] scr_mtdc_q, scr_mtdc_d;
+  logic                     scr_mtdc_en;
+  // Machine Exception Program Counter Capability
+  logic [CheriCapWidth-1:0] scr_mepcc_q, scr_mepcc_d;
+  logic                     scr_mepcc_en;
+  // Machine Scratch Capability
+  logic [CheriCapWidth-1:0] scr_mscratchc_q, scr_mscratchc_d;
+  logic                     scr_mscratchc_en;
+
 
   // CSRs
   priv_lvl_e   priv_lvl_q, priv_lvl_d;
@@ -537,14 +554,19 @@ module ibex_cs_registers #(
     endcase
 
     unique case (scr_addr_i)
-      SCR_DDC: scr_rdata_o = scr_ddc_q;
+      SCR_DDC:       scr_rdata_o = scr_ddc_q;
+      SCR_MTCC:      scr_rdata_o = scr_mtcc_q;
+      SCR_MTDC:      scr_rdata_o = scr_mtdc_q;
+      SCR_MEPCC:     scr_rdata_o = scr_mepcc_q;
+      SCR_MSCRATCHC: scr_rdata_o = scr_mscratchc_q;
       default: scr_rdata_o = 'X;
     endcase
   end
 
   // write logic
   always_comb begin
-    exception_pc = pc_id_i;
+    exception_pc  = pc_id_i;
+    exception_pcc = pcc_id_i;
 
     priv_lvl_d   = priv_lvl_q;
     mstatus_en   = 1'b0;
@@ -581,8 +603,16 @@ module ibex_cs_registers #(
     mhpmcounter_we   = '0;
     mhpmcounterh_we  = '0;
 
-    scr_ddc_en = 1'b0;
-    scr_ddc_d = scr_ddc_q;
+    scr_ddc_en       = 1'b0;
+    scr_ddc_d        = scr_ddc_q;
+    scr_mtcc_en      = 1'b0;
+    scr_mtcc_d       = scr_mtcc_q;
+    scr_mtdc_en      = 1'b0;
+    scr_mtdc_d       = scr_mtdc_q;
+    scr_mepcc_en     = 1'b0;
+    scr_mepcc_d      = scr_mepcc_q;
+    scr_mscratchc_en = 1'b0;
+    scr_mscratchc_d  = scr_mscratchc_q;
 
     cpuctrl_we       = 1'b0;
     cpuctrl_d        = cpuctrl_q;
@@ -701,6 +731,33 @@ module ibex_cs_registers #(
           scr_ddc_d = scr_wdata_i;
           scr_ddc_en = 1'b1;
         end
+        SCR_MTCC: begin
+          // need to: MTVEC-ify the input (ie check bottom bits)
+          // then check if it's sealed (if it is, untag it)
+          // then check that the base is 4byte aligned (because bottom bits of
+          // MTVEC are important)
+          // then it can be written
+          // ALSO: need to update MTVEC when this is written, and vice versa
+          scr_mtcc_d = scr_wdata_i;
+          scr_mtcc_en = 1'b1;
+        end
+        SCR_MTDC: begin
+          scr_mtdc_d = scr_wdata_i;
+          scr_mtdc_en = 1'b1;
+        end
+        SCR_MEPCC: begin
+          // need to: set bottom bit to 0
+          //     if this changes the value, then need to check that the
+          //     capability is not sealed; if it is untag it
+          // then write the capability
+          // ALSO: need to update MEPC when this is written, and vice versa
+          scr_mepcc_d = scr_wdata_i;
+          scr_mepcc_en = 1'b1;
+        end
+        SCR_MSCRATCHC: begin
+          scr_mscratchc_d = scr_wdata_i;
+          scr_mscratchc_en = 1'b1;
+        end
         default:;
       endcase
     end
@@ -711,13 +768,16 @@ module ibex_cs_registers #(
       csr_save_cause_i: begin
         unique case (1'b1)
           csr_save_if_i: begin
-            exception_pc = pc_if_i;
+            exception_pc  = pc_if_i;
+            exception_pcc = pcc_if_i;
           end
           csr_save_id_i: begin
-            exception_pc = pc_id_i;
+            exception_pc  = pc_id_i;
+            exception_pcc = pcc_id_i;
           end
           csr_save_wb_i: begin
-            exception_pc = pc_wb_i;
+            exception_pc  = pc_wb_i;
+            exception_pcc = pcc_wb_i;
           end
           default:;
         endcase
@@ -749,6 +809,8 @@ module ibex_cs_registers #(
           mcause_d       = csr_mcause_i;
           // save previous status for recoverable NMI
           mstack_en      = 1'b1;
+          scr_mepcc_en       = 1'b1;
+          scr_mepcc_d        = exception_pcc;
 
           if (!(mcause_d.irq_ext || mcause_d.irq_int)) begin
             // SEC_CM: EXCEPTION.CTRL_FLOW.LOCAL_ESC
@@ -1070,7 +1132,7 @@ module ibex_cs_registers #(
   ibex_csr #(
     .Width    (CheriCapWidth),
     .ShadowCopy(1'b0),
-    .ResetValue(91'h40000000003FFDF690003F0)
+    .ResetValue(CheriAlmightyCap)
   ) u_scr_ddc (
     .clk_i     (clk_i),
     .rst_ni    (rst_ni),
@@ -1079,6 +1141,63 @@ module ibex_cs_registers #(
     .rd_data_o (scr_ddc_q),
     .rd_error_o()
   );
+
+  // MTCC
+  ibex_csr #(
+    .Width    (CheriCapWidth),
+    .ShadowCopy(1'b0),
+    .ResetValue(CheriAlmightyCap)
+  ) u_scr_mtcc (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (scr_mtcc_d),
+    .wr_en_i   (scr_mtcc_en),
+    .rd_data_o (scr_mtcc_q),
+    .rd_error_o()
+  );
+
+  // MTDC
+  ibex_csr #(
+    .Width    (CheriCapWidth),
+    .ShadowCopy(1'b0),
+    .ResetValue(CheriNullCap)
+  ) u_scr_mtdc (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (scr_mtdc_d),
+    .wr_en_i   (scr_mtdc_en),
+    .rd_data_o (scr_mtdc_q),
+    .rd_error_o()
+  );
+
+  // MEPCC
+  ibex_csr #(
+    .Width    (CheriCapWidth),
+    .ShadowCopy(1'b0),
+    .ResetValue(CheriAlmightyCap)
+  ) u_scr_mepcc (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (scr_mepcc_d),
+    .wr_en_i   (scr_mepcc_en),
+    .rd_data_o (scr_mepcc_q),
+    .rd_error_o()
+  );
+
+  // MSCRATCHC
+  ibex_csr #(
+    .Width    (CheriCapWidth),
+    .ShadowCopy(1'b0),
+    .ResetValue(CheriNullCap)
+  ) u_scr_mscratchc (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (scr_mscratchc_d),
+    .wr_en_i   (scr_mscratchc_en),
+    .rd_data_o (scr_mscratchc_q),
+    .rd_error_o()
+  );
+
 
   // -----------------
   // PMP registers

@@ -1056,7 +1056,9 @@ module ibex_core import ibex_pkg::*; #(
   /////////////////////////////////////////
 
   assign csr_wdata  = alu_operand_a_ex;
-  assign csr_addr   = csr_num_e'(csr_access ? alu_operand_b_ex[11:0] : 12'b0);
+  assign csr_addr   = csr_num_e'(csr_access ?   alu_operand_b_ex[11:0] : 12'b0);
+  assign scr_wdata  = cheri_operand_a_ex;
+  assign scr_addr   = scr_num_e'(scr_access ? cheri_operand_b_ex[11:0] : 12'b0);
 
   ibex_cs_registers #(
     .DbgTriggerEn     (DbgTriggerEn),
@@ -1073,7 +1075,9 @@ module ibex_core import ibex_pkg::*; #(
     .RV32E            (RV32E),
     .RV32M            (RV32M),
     .RV32B            (RV32B),
-    .CheriCapWidth    (CheriCapWidth)
+    .CheriCapWidth    (CheriCapWidth),
+    .CheriAlmightyCap (CheriAlmightyCap),
+    .CheriNullCap     (CheriNullCap)
   ) cs_registers_i (
     .clk_i (clk_i),
     .rst_ni(rst_ni),

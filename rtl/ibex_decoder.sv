@@ -722,20 +722,20 @@ module ibex_decoder #(
                 // TODO
               end
               C_SPECIAL_RW: begin
-                if ((rf_raddr_b_o == SCR_PCC        )
-                   |(rf_raddr_b_o == SCR_DDC        )
-                   //|(rf_raddr_b_o == SCR_UTCC       ) // User mode
-                   //|(rf_raddr_b_o == SCR_UTDC       ) // User mode
-                   //|(rf_raddr_b_o == SCR_USCRATCHC  ) // User mode
-                   //|(rf_raddr_b_o == SCR_UEPCC      ) // User mode
-                   //|(rf_raddr_b_o == SCR_STCC       ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_STDC       ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_SSCRATCHC  ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_SEPCC      ) // Supervisor mode
-                   |(rf_raddr_b_o == SCR_MTCC       ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MTDC       ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MSCRATCHC  ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MEPCC      ) // Machine mode
+                if ((rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) // writing to PCC is illegal
+                   |(rf_raddr_b_o == SCR_DDC                    )
+                   |(rf_raddr_b_o == SCR_MTCC                   ) // Machine mode
+                   |(rf_raddr_b_o == SCR_MTDC                   ) // Machine mode
+                   |(rf_raddr_b_o == SCR_MSCRATCHC              ) // Machine mode
+                   |(rf_raddr_b_o == SCR_MEPCC                  ) // Machine mode
+                   //|(rf_raddr_b_o == SCR_STCC                   ) // Supervisor mode
+                   //|(rf_raddr_b_o == SCR_STDC                   ) // Supervisor mode
+                   //|(rf_raddr_b_o == SCR_SSCRATCHC              ) // Supervisor mode
+                   //|(rf_raddr_b_o == SCR_SEPCC                  ) // Supervisor mode
+                   //|(rf_raddr_b_o == SCR_UTCC                   ) // User mode
+                   //|(rf_raddr_b_o == SCR_UTDC                   ) // User mode
+                   //|(rf_raddr_b_o == SCR_USCRATCHC              ) // User mode
+                   //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
                    ) begin
                   rf_we = 1'b1;
                 end else begin
@@ -1397,21 +1397,32 @@ module ibex_decoder #(
               end
 
               C_SPECIAL_RW: begin
-                if ((rf_raddr_b_o == SCR_PCC        )
-                   |(rf_raddr_b_o == SCR_DDC        )
-                   //|(rf_raddr_b_o == SCR_UTCC       ) // User mode
-                   //|(rf_raddr_b_o == SCR_UTDC       ) // User mode
-                   //|(rf_raddr_b_o == SCR_USCRATCHC  ) // User mode
-                   //|(rf_raddr_b_o == SCR_UEPCC      ) // User mode
-                   //|(rf_raddr_b_o == SCR_STCC       ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_STDC       ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_SSCRATCHC  ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_SEPCC      ) // Supervisor mode
-                   |(rf_raddr_b_o == SCR_MTCC       ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MTDC       ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MSCRATCHC  ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MEPCC      ) // Machine mode
-                   ) begin
+                if (rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) begin
+                  // simple instruction; just read PCC
+                  cheri_op_a_mux_sel_o   = CHERI_OP_A_PCC;
+                  cheri_base_opcode_o    = THREE_OP;
+                  cheri_threeop_opcode_o = SOURCE_AND_DEST;
+                  cheri_s_a_d_opcode_o   = C_MOVE;
+                end else if (rf_raddr_b_o == SCR_DDC & rf_raddr_a_o == 0) begin
+                  // simple instruction; just read DDC
+                  cheri_op_a_mux_sel_o   = CHERI_OP_A_REG_DDC;
+                  cheri_base_opcode_o    = THREE_OP;
+                  cheri_threeop_opcode_o = SOURCE_AND_DEST;
+                  cheri_s_a_d_opcode_o   = C_MOVE;
+                end else if ((rf_raddr_b_o == SCR_DDC                    ) // DDC read+write
+                            |(rf_raddr_b_o == SCR_MTCC                   ) // Machine mode
+                            |(rf_raddr_b_o == SCR_MTDC                   ) // Machine mode
+                            |(rf_raddr_b_o == SCR_MSCRATCHC              ) // Machine mode
+                            |(rf_raddr_b_o == SCR_MEPCC                  ) // Machine mode
+                            //|(rf_raddr_b_o == SCR_STCC                   ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_STDC                   ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_SSCRATCHC              ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_SEPCC                  ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_UTCC                   ) // User mode
+                            //|(rf_raddr_b_o == SCR_UTDC                   ) // User mode
+                            //|(rf_raddr_b_o == SCR_USCRATCHC              ) // User mode
+                            //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
+                            ) begin
                   scr_access_o          = 1'b1;
                   rf_wdata_sel_o        = RF_WD_CSR;
                   scr_op_o              = scr_op_e'({rf_waddr_o != '0, rf_raddr_a_o != '0});

@@ -426,7 +426,7 @@ package ibex_pkg;
   // Regfile write data selection
   typedef enum logic [1:0] {
     RF_WD_EX,
-    RF_WD_CSR,
+    RF_WD_CSR, // also covers CHERI SCRs
     RF_WD_CHERI
   } rf_wd_sel_e;
 
