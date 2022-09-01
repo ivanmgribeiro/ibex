@@ -74,6 +74,7 @@ module ibex_cheri_alu #(
 
   logic [CheriCapWidth-1:0] a_setKind_cap_i;
   logic [    KindWidth-1:0] a_setKind_i;
+  logic [    KindWidth-1:0] a_setKind_int;
   logic [CheriCapWidth-1:0] a_setKind_o;
 
   logic [    KindWidth-1:0] b_setKind_i;
@@ -784,9 +785,16 @@ module_wrap64_getTop module_wrap64_getTop_b (
 // TODO implementing setKind with these modules isn't great since they expect
 // a "Kind" as an input, which is not easy to input from Verilog
 // since it's a BSV tagged union
+
+// TODO this is hardwired for now - update to not be hardwired later
+assign a_setKind_int = a_setKind_i[3:0] == 4'hF ? {3'b000, a_setKind_i[3:0]}
+                     : a_setKind_i[3:0] == 4'hE ? {3'b001, a_setKind_i[3:0]}
+                     : a_setKind_i[3:0] == 4'hD ? {3'b010, a_setKind_i[3:0]}
+                     : a_setKind_i[3:0] == 4'hC ? {3'b011, a_setKind_i[3:0]}
+                     : {3'b100, a_setKind_i[3:0]};
 module_wrap64_setKind module_wrap64_setKind_a (
       .wrap64_setKind_cap   (a_setKind_cap_i),
-      .wrap64_setKind_kind  (a_setKind_i),
+      .wrap64_setKind_kind  (a_setKind_int),
       .wrap64_setKind       (a_setKind_o));
 
 module_wrap64_setKind module_wrap64_setKind_b (
