@@ -488,7 +488,7 @@ module ibex_id_stage #(
   ///////////////////////
 
   // Suppress register write if there is an illegal CSR access or instruction is not executing
-  assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i;
+  assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i & ~id_exception;
 
   // When the CHERI ALU writes a capability, we want to extract the address
   // (ie the integer value) for RVFI
