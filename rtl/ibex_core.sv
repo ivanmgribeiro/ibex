@@ -1324,6 +1324,13 @@ module ibex_core import ibex_pkg::*; #(
   logic [63:0]     rvfi_ext_stage_mcycle       [RVFI_STAGES];
 
 
+  // rf_wdata_int_wb may not always track with rf_wdata_cap_wb.
+  // If we don't have RVFI we don't care about this, because the register file
+  // will write the capability, but RVFI needs to get the address of the actual
+  // capability that is written
+  // rf_wdata_int_from_cap_wb will hold the integer address of rf_wdata_cap_wb
+  logic [31:0]     rf_wdata_int_from_cap_wb;
+  module_wrap64_getAddr rf_int_from_cap (rf_wdata_cap_wb, rf_wdata_int_from_cap_wb);
 
   logic        rvfi_stage_valid_d   [RVFI_STAGES];
 
@@ -1356,7 +1363,8 @@ module ibex_core import ibex_pkg::*; #(
   assign rvfi_mem_wdata = rvfi_stage_mem_wdata[RVFI_STAGES-1];
 
   assign rvfi_rd_addr_wb  = rf_waddr_wb;
-  assign rvfi_rd_wdata_wb = rf_we_wb ? rf_wdata_int_wb : rf_wdata_int_lsu;
+  assign rvfi_rd_wdata_wb = rf_we_wb ? (rf_wcap_wb ? rf_wdata_int_from_cap_wb : rf_wdata_int_wb)
+                                     : rf_wdata_int_lsu;
   assign rvfi_rd_we_wb    = rf_we_wb | rf_we_lsu;
 
   always_comb begin
