@@ -633,6 +633,7 @@ module ibex_core import ibex_pkg::*; #(
     // CHERI results
     .cheri_result_ex_i       (cheri_result_ex),
     .cheri_wrote_cap_i       (cheri_wrote_cap_ex),
+    .scr_rdata_i             (scr_rdata),
 
     // CHERI exceptions
     .cheri_exceptions_a_ex_i (cheri_exceptions_a_ex),

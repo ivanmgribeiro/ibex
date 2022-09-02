@@ -105,6 +105,7 @@ module ibex_id_stage #(
 
   // CHERI results
   input  [CheriCapWidth-1:0]        cheri_result_ex_i,
+  input  logic [CheriCapWidth-1:0]  scr_rdata_i,
   input                             cheri_wrote_cap_i,
 
   // CHERI exceptions
@@ -498,23 +499,24 @@ module ibex_id_stage #(
 
   // Register file write data mux
   always_comb begin : rf_wdata_id_mux
-    // TODO set this correctly
-    // for now, always get the capability result from the CHERI ALU
-    // in future, the capability should be a null capability with the integer
-    // as its address
-    rf_wdata_cap_id_o = cheri_result_ex_i;
     rf_wcap_id_o      = cheri_wrote_cap_i & cheri_en_o;
-    if (cheri_en_o) begin
-      // the CHERI puts either an integer or a capability in the result line
-      // depending on the instruction; mux the integer result here here
-      rf_wdata_int_id_o = cheri_wrote_cap_i ? rf_wdata_int_from_cap : cheri_result_ex_i[31:0];
-    end else begin
-      unique case (rf_wdata_sel)
-        RF_WD_EX:  rf_wdata_int_id_o = result_ex_i;
-        RF_WD_CSR: rf_wdata_int_id_o = csr_rdata_i;
-        default:   rf_wdata_int_id_o = result_ex_i;
-      endcase
-    end
+    unique case (rf_wdata_sel)
+      RF_WD_EX: begin
+        // the CHERI ALU puts either an integer or a capability in the result line
+        // depending on the instruction; mux the integer result here here
+        rf_wdata_int_id_o = (cheri_en_o & !cheri_wrote_cap_i) ? cheri_result_ex_i[31:0]
+                                                              : result_ex_i;
+        rf_wdata_cap_id_o = cheri_result_ex_i;
+      end
+      RF_WD_CSR: begin
+        rf_wdata_int_id_o = csr_rdata_i;
+        rf_wdata_cap_id_o = scr_rdata_i;
+      end
+      default: begin
+        rf_wdata_int_id_o = result_ex_i;
+        rf_wdata_cap_id_o = cheri_result_ex_i;
+      end
+    endcase
   end
 
   /////////////
