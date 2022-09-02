@@ -781,6 +781,10 @@ module ibex_cs_registers #(
                                       & ~isSealed_o;
 
           scr_mtcc_en = getBaseAlignment_o == 2'b0;
+
+          // also write MTVEC
+          mtvec_en = getBaseAlignment_o == 2'b0;
+          mtvec_d  = {getOffset_o[31:2], 2'b01};
         end
         SCR_MTDC: begin
           scr_mtdc_d = scr_wdata_i;
@@ -806,6 +810,10 @@ module ibex_cs_registers #(
                                        & setOffset_o[CheriCapWidth]
                                        & (!isSealed_o | getOffset_cap_i[0] == 1'b0);
           scr_mepcc_en = 1'b1;
+
+          // also write MEPC
+          mepc_en = 1'b1;
+          mepc_d  = {getOffset_o[31:1], 1'b0};
         end
         SCR_MSCRATCHC: begin
           scr_mscratchc_d = scr_wdata_i;
