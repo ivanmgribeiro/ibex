@@ -400,7 +400,10 @@ module ibex_cheri_alu #(
           end
 
           C_BUILD_CAP: begin
-            b_setKind_i = a_getKind_o;
+            // preserve sentries
+            // upper bits of kind tell us it's unsealed
+            b_setKind_i = b_getKind_o[KindWidth-1:OTypeWidth] == 'h1 ? b_getKind_o
+                                                                     : {3'h0, 4'hX};
             result_o = b_setKind_o | {1'b1, {CheriCapWidth-1{1'b0}}};
             wrote_capability = 1'b1;
 
