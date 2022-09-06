@@ -245,10 +245,10 @@ module ibex_core import ibex_pkg::*; #(
   logic                     rf_wcap_fwd_wb;
   logic [CheriCapWidth-1:0] rf_wdata_cap_lsu;
   logic [31:0]              rf_wdata_int_lsu;
+  logic                     rf_wcap_lsu;
   logic                     rf_we_wb;
   logic                     rf_wcap_wb;
   logic                     rf_we_lsu;
-  logic                     rf_wcap_lsu = 0; // for now LSU cannot write capabilities
   logic                     rf_ecc_err_comb;
 
   logic [4:0]               rf_waddr_id;
@@ -322,12 +322,14 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriCapWidth-1:0] scr_ddc;
 
   // Data Memory Control
-  logic        lsu_we;
-  logic [1:0]  lsu_type;
-  logic        lsu_sign_ext;
-  logic        lsu_req;
-  logic [31:0] lsu_wdata;
-  logic        lsu_req_done;
+  logic                     lsu_we;
+  logic [1:0]               lsu_type;
+  logic                     lsu_sign_ext;
+  logic                     lsu_req;
+  logic [31:0]              lsu_wdata_int;
+  logic [CheriCapWidth-1:0] lsu_wdata_cap;
+  logic                     lsu_wcap;
+  logic                     lsu_req_done;
 
   // stall control
   logic        id_in_ready;
@@ -664,12 +666,14 @@ module ibex_core import ibex_pkg::*; #(
     .scr_ddc_i            (scr_ddc),
 
     // LSU
-    .lsu_req_o     (lsu_req),  // to load store unit
-    .lsu_we_o      (lsu_we),  // to load store unit
-    .lsu_type_o    (lsu_type),  // to load store unit
-    .lsu_sign_ext_o(lsu_sign_ext),  // to load store unit
-    .lsu_wdata_o   (lsu_wdata),  // to load store unit
-    .lsu_req_done_i(lsu_req_done),  // from load store unit
+    .lsu_req_o      (lsu_req),  // to load store unit
+    .lsu_we_o       (lsu_we),  // to load store unit
+    .lsu_type_o     (lsu_type),  // to load store unit
+    .lsu_sign_ext_o (lsu_sign_ext),  // to load store unit
+    .lsu_wdata_int_o(lsu_wdata_int),  // to load store unit
+    .lsu_wdata_cap_o(lsu_wdata_cap),  // to load store unit
+    .lsu_wcap_o     (lsu_wcap), // to load store unit
+    .lsu_req_done_i (lsu_req_done),  // from load store unit
 
     .lsu_addr_incr_req_i(lsu_addr_incr_req),
     .lsu_addr_last_i    (lsu_addr_last),
@@ -831,13 +835,17 @@ module ibex_core import ibex_pkg::*; #(
     .data_rdata_i     (data_rdata_i),
 
     // signals to/from ID/EX stage
-    .lsu_we_i      (lsu_we),
-    .lsu_type_i    (lsu_type),
-    .lsu_wdata_i   (lsu_wdata),
-    .lsu_sign_ext_i(lsu_sign_ext),
+    .lsu_we_i       (lsu_we),
+    .lsu_type_i     (lsu_type),
+    .lsu_wdata_int_i(lsu_wdata_int),
+    .lsu_wdata_cap_i(lsu_wdata_cap),
+    .lsu_wcap_i     (lsu_wcap),
+    .lsu_sign_ext_i (lsu_sign_ext),
 
-    .lsu_rdata_o      (rf_wdata_int_lsu), // TODO eventually will want a capability signal as well
+    .lsu_rdata_cap_o  (rf_wdata_cap_lsu),
+    .lsu_rdata_int_o  (rf_wdata_int_lsu),
     .lsu_rdata_valid_o(rf_we_lsu),
+    .lsu_rcap_o       (rf_wcap_lsu),
     .lsu_req_i        (lsu_req),
     .lsu_req_done_o   (lsu_req_done),
 
@@ -1616,7 +1624,7 @@ module ibex_core import ibex_pkg::*; #(
   always_comb begin
     if (instr_first_cycle_id) begin
       rvfi_mem_addr_d  = alu_adder_result_ex;
-      rvfi_mem_wdata_d = lsu_wdata;
+      rvfi_mem_wdata_d = lsu_wdata_int; // TODO get address of cap when wcap is active
     end else begin
       rvfi_mem_addr_d  = rvfi_mem_addr_q;
       rvfi_mem_wdata_d = rvfi_mem_wdata_q;

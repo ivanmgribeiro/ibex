@@ -141,7 +141,9 @@ module ibex_id_stage #(
   output logic                      lsu_we_o,
   output logic [1:0]                lsu_type_o,
   output logic                      lsu_sign_ext_o,
-  output logic [31:0]               lsu_wdata_o,
+  output logic [CheriCapWidth-1:0]  lsu_wdata_cap_o,
+  output logic [31:0]               lsu_wdata_int_o,
+  output logic                      lsu_wcap_o,
 
   input  logic                      lsu_req_done_i, // Data req to LSU is complete and
                                                     // instruction can move to writeback
@@ -322,6 +324,7 @@ module ibex_id_stage #(
   logic [1:0]  lsu_type;
   logic        lsu_sign_ext;
   logic        lsu_req, lsu_req_dec;
+  logic        lsu_wcap;
   logic        data_req_allowed;
 
   // CSR control
@@ -616,7 +619,7 @@ module ibex_id_stage #(
     .data_we_o            (lsu_we),
     .data_type_o          (lsu_type),
     .data_sign_extension_o(lsu_sign_ext),
-    .mem_cap_access_o     (),
+    .mem_cap_access_o     (lsu_wcap),
 
     .mem_ddc_relative_o(),
 
@@ -774,8 +777,9 @@ module ibex_id_stage #(
   assign lsu_we_o                = lsu_we;
   assign lsu_type_o              = lsu_type;
   assign lsu_sign_ext_o          = lsu_sign_ext;
-  // TODO eventually will want LSU to write out capabilities
-  assign lsu_wdata_o             = rf_rdata_b_int_fwd;
+  assign lsu_wdata_int_o         = rf_rdata_b_int_fwd;
+  assign lsu_wdata_cap_o         = rf_rdata_b_cap_fwd;
+  assign lsu_wcap_o              = lsu_wcap; // TODO allow writing capabilities
   // csr_op_en_o is set when CSR access should actually happen.
   // csv_access_o is set when CSR access instruction is present and is used to compute whether a CSR
   // access is illegal. A combinational loop would be created if csr_op_en_o was used along (as

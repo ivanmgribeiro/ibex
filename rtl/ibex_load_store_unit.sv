@@ -15,8 +15,10 @@
 `include "dv_fcov_macros.svh"
 
 module ibex_load_store_unit #(
-  parameter bit          MemECC       = 1'b0,
-  parameter int unsigned MemDataWidth = MemECC ? 32 + 7 : 32
+  parameter bit          MemECC        = 1'b0,
+  parameter int unsigned MemDataWidth  = MemECC ? 32 + 7 : 32,
+  parameter int unsigned CheriCapWidth = 91,
+  parameter bit [CheriCapWidth-1:0] CheriNullCap = 91'h0
 ) (
   input  logic         clk_i,
   input  logic         rst_ni,
@@ -35,14 +37,18 @@ module ibex_load_store_unit #(
   input  logic [MemDataWidth-1:0] data_rdata_i,
 
   // signals to/from ID/EX stage
-  input  logic         lsu_we_i,             // write enable                     -> from ID/EX
-  input  logic [1:0]   lsu_type_i,           // data type: word, half word, byte -> from ID/EX
-  input  logic [31:0]  lsu_wdata_i,          // data to write to memory          -> from ID/EX
-  input  logic         lsu_sign_ext_i,       // sign extension                   -> from ID/EX
+  input  logic                      lsu_we_i,        // write enable                     -> from ID/EX
+  input  logic [1:0]                lsu_type_i,      // data type: word, half word, byte -> from ID/EX
+  input  logic [CheriCapWidth-1:0]  lsu_wdata_cap_i, // integer to write to memory       -> from ID/EX
+  input  logic [31:0]               lsu_wdata_int_i, // capability to write to memory    -> from ID/EX
+  input  logic                      lsu_wcap_i,      // write capability or integer?     -> from ID/EX
+  input  logic                      lsu_sign_ext_i,  // sign extension                   -> from ID/EX
 
-  output logic [31:0]  lsu_rdata_o,          // requested data                   -> to ID/EX
-  output logic         lsu_rdata_valid_o,
-  input  logic         lsu_req_i,            // data request                     -> from ID/EX
+  output logic [CheriCapWidth-1:0]  lsu_rdata_cap_o,   // requested data                   -> to ID/EX
+  output logic [31:0]               lsu_rdata_int_o,   // requested data                   -> to ID/EX
+  output logic                      lsu_rcap_o,        // capability or integer read?      -> to ID/EX
+  output logic                      lsu_rdata_valid_o,
+  input  logic                      lsu_req_i,         // data request                     -> from ID/EX
 
   input  logic [31:0]  adder_result_ex_i,    // address computed in ALU          -> from ID/EX
 
@@ -173,11 +179,11 @@ module ibex_load_store_unit #(
   // we handle misaligned accesses, half word and byte accesses here
   always_comb begin
     unique case (data_offset)
-      2'b00:   data_wdata =  lsu_wdata_i[31:0];
-      2'b01:   data_wdata = {lsu_wdata_i[23:0], lsu_wdata_i[31:24]};
-      2'b10:   data_wdata = {lsu_wdata_i[15:0], lsu_wdata_i[31:16]};
-      2'b11:   data_wdata = {lsu_wdata_i[ 7:0], lsu_wdata_i[31: 8]};
-      default: data_wdata =  lsu_wdata_i[31:0];
+      2'b00:   data_wdata =  lsu_wdata_int_i[31:0];
+      2'b01:   data_wdata = {lsu_wdata_int_i[23:0], lsu_wdata_int_i[31:24]};
+      2'b10:   data_wdata = {lsu_wdata_int_i[15:0], lsu_wdata_int_i[31:16]};
+      2'b11:   data_wdata = {lsu_wdata_int_i[ 7:0], lsu_wdata_int_i[31: 8]};
+      default: data_wdata =  lsu_wdata_int_i[31:0];
     endcase // case (data_offset)
   end
 
@@ -510,7 +516,9 @@ module ibex_load_store_unit #(
     (ls_fsm_cs == IDLE) & data_rvalid_i & ~data_or_pmp_err & ~data_we_q & ~data_intg_err;
 
   // output to register file
-  assign lsu_rdata_o = data_rdata_ext;
+  assign lsu_rdata_int_o = data_rdata_ext;
+  assign lsu_rdata_cap_o = CheriNullCap; // TODO write capability that was read from memory
+  assign lsu_rcap_o      = 1'b0;         // TODO only read integers for now (no capabilities)
 
   // output data address must be word aligned
   assign data_addr_w_aligned = {data_addr[31:2], 2'b00};
