@@ -39,6 +39,14 @@ struct RVFI_DII_Instruction_Packet {
     std::uint8_t padding : 8;         // [7]
 };
 
+struct Mem_Access {
+    std::uint32_t delay;
+    std::uint32_t addr;
+    bool          write;
+    std::uint8_t  be;
+    std::uint32_t data;
+};
+
 RVFI_DII_Execution_Packet readRVFI(Vibex_top_sram *top, bool signExtend);
 void sendReturnTrace(std::vector<RVFI_DII_Execution_Packet> &returnTrace, unsigned long long socket);
 
@@ -103,15 +111,14 @@ int main(int argc, char** argv, char** env) {
     std::vector<RVFI_DII_Execution_Packet> returntrace;
 
     int instr_addr_prev = 0;
-    int data_addr_prev = 0;
-    int data_be_prev = 0;
-    int data_we_prev = 0;
-    int data_wdata_prev = 0;
 
     uint8_t *memory = (uint8_t *) malloc(memory_size);
     if (!memory) {
         std::cout << "malloc didn't work" << std::endl;
     }
+
+    // pending memory accesses
+    std::vector<Mem_Access> mem_accesses;
 
     // TODO loop condition
     while (1) {
@@ -314,11 +321,14 @@ int main(int argc, char** argv, char** env) {
                 }
             }
 
-            // handle memory requests
-            // if there was a data_gnt_i signal last cycle, then execute the
-            // memory access
-            top->data_rvalid_i = top->data_gnt_i;
-            if (top->data_gnt_i) {
+            // handle memory requests if there is a pending memory request that
+            // has reached a delay of 0
+            if (mem_accesses.size() > 0 && mem_accesses[0].delay == 0) {
+                top->data_rvalid_i = 1;
+                int data_addr_prev  = mem_accesses[0].addr;
+                int data_be_prev    = mem_accesses[0].be;
+                int data_we_prev    = mem_accesses[0].write ? 1 : 0;
+                int data_wdata_prev = mem_accesses[0].data;
                 bool addr_out_of_range = data_addr_prev < memory_base
                                          || data_addr_prev >= memory_base + memory_size;
                 int int_mem_addr = data_addr_prev - memory_base;
@@ -364,6 +374,12 @@ int main(int argc, char** argv, char** env) {
                         top->data_rdata_i = val;
                     }
                 }
+                // remove the memory access that we've just completed
+                mem_accesses.erase(mem_accesses.begin());
+            } else {
+                // no response
+                top->data_rvalid_i = 0;
+                top->data_err_i = 0;
             }
 
 
@@ -385,20 +401,27 @@ int main(int argc, char** argv, char** env) {
                                //&& instructions[in_count].dii_cmd;
             // we can always service memory requests
             top->data_gnt_i = top->data_req_o;
+            // record requests
+            if (top->data_req_o) {
+                Mem_Access access = {
+                    .delay = 1, // start delay at 1 since it is about to be
+                                // reduced
+                    .addr  = top->data_addr_o,
+                    .write = top->data_we_o != 0,
+                    .be    = top->data_be_o,
+                    .data  = top->data_wdata_o
+                };
+                mem_accesses.push_back(access);
+            }
+            // decrease delay of all accesses
+            for (int i = 0; i < mem_accesses.size(); i++) {
+                mem_accesses[i].delay--;
+            }
             if (verbosity > 0 && top->data_gnt_i) {
                 std::cout << "setting data_gnt_i" << std::endl;
                 std::cout << "addr: " << std::hex << top->data_addr_o << std::endl;
             }
 
-            if (top->data_req_o) {
-                data_addr_prev = top->data_addr_o;
-                data_wdata_prev = top->data_wdata_o;
-                data_be_prev = top->data_be_o;
-                data_we_prev = top->data_we_o;
-                if (verbosity > 0) {
-                    std::cout << "data_addr_prev: " << std::hex << data_addr_prev << std::endl;
-                }
-            }
             if (top->instr_req_o) {
                 instr_addr_prev = top->instr_addr_o;
             }
