@@ -472,6 +472,7 @@ module ibex_cheri_alu #(
           C_C_SEAL: begin
             // whether B passes the conditions to seal
             logic b_is_ok = b_isValidCap_o & b_isInBounds_o & b_getAddr_o != {IntWidth{1'b1}};
+            logic a_is_ok = a_isValidCap_o & ~a_isSealed_o;
             a_setKind_cap_i = operand_a_i;
             // TODO this will need to be changed
             a_setKind_i = b_getAddr_o[KindWidth-1:0];
@@ -480,10 +481,10 @@ module ibex_cheri_alu #(
 
             exceptions_a_o[TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
 
-            exceptions_b_o[       SEAL_VIOLATION] = b_is_ok && exceptions_b[       SEAL_VIOLATION];
-            exceptions_b_o[PERMIT_SEAL_VIOLATION] = b_is_ok && exceptions_b[PERMIT_SEAL_VIOLATION];
-            exceptions_b_o[     LENGTH_VIOLATION] = b_is_ok && (exceptions_b[LENGTH_VIOLATION]
-                                                               |b_getAddr_o > CheriMaxOType);
+            exceptions_b_o[       SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[       SEAL_VIOLATION];
+            exceptions_b_o[PERMIT_SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[PERMIT_SEAL_VIOLATION];
+            exceptions_b_o[     LENGTH_VIOLATION] = a_is_ok && b_is_ok && (exceptions_b[LENGTH_VIOLATION]
+                                                                          |b_getAddr_o > CheriMaxOType);
 
             if (Verbosity) begin
               $display("ccseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
