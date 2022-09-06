@@ -9,12 +9,15 @@ filesets:
       - module_wrap64_fromMem.v
       - module_wrap64_getAddr.v
       - module_wrap64_getBase.v
+      - module_wrap64_getBaseAlignment.v
       - module_wrap64_getFlags.v
       - module_wrap64_getHardPerms.v
       - module_wrap64_getKind.v
       - module_wrap64_getLength.v
       - module_wrap64_getOffset.v
       - module_wrap64_getPerms.v
+      - module_wrap64_getRepresentableAlignmentMask.v
+      - module_wrap64_getRepresentableLength.v
       - module_wrap64_getSoftPerms.v
       - module_wrap64_getTop.v
       - module_wrap64_incOffset.v
