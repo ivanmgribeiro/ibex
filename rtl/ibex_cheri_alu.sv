@@ -563,7 +563,7 @@ module ibex_cheri_alu #(
               end
 
               C_GET_TYPE: begin
-                result_o[IntWidth-1:0] = a_isSealed_o ? {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o}
+                result_o[IntWidth-1:0] = a_isSealed_o ? {{(IntWidth-OTypeWidth){a_getOType_o[OTypeWidth-1]}}, a_getOType_o}
                                                       : {IntWidth{1'b1}};
                 wrote_capability = 1'b0;
 
