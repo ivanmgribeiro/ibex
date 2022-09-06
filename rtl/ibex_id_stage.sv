@@ -513,7 +513,8 @@ module ibex_id_stage #(
         rf_wdata_cap_id_o = scr_rdata_i;
       end
       default: begin
-        rf_wdata_int_id_o = result_ex_i;
+        rf_wdata_int_id_o = (cheri_en_o & !cheri_wrote_cap_i) ? cheri_result_ex_i[31:0]
+                                                              : result_ex_i;
         rf_wdata_cap_id_o = cheri_result_ex_i;
       end
     endcase
