@@ -1625,14 +1625,18 @@ module ibex_core import ibex_pkg::*; #(
     end
   end
 
+  // CHERI module instantiations to convert the capabilities read/written by
+  // the LSU to their in-memory representation for RVFI
+  logic [64:0] lsu_rdata_mem_cap, lsu_wdata_mem_cap;
+  module_wrap64_toMem wdata_toMem(lsu_wdata_cap, lsu_wdata_mem_cap);
+  module_wrap64_toMem rdata_toMem(rf_wdata_cap_lsu, lsu_rdata_mem_cap);
 
   // Memory adddress/write data available first cycle of ld/st instruction from register read
   always_comb begin
     if (instr_first_cycle_id) begin
       rvfi_mem_addr_d  = alu_adder_result_ex;
-      // TODO fill upper bits of data
-      // TODO in-memory capability representation
-      rvfi_mem_wdata_d = {32'h0, lsu_wdata_int};
+      rvfi_mem_wdata_d = rvfi_mem_mask_int == 8'b1111_1111 ? lsu_wdata_mem_cap[63:0]
+                                                           : {32'h0, lsu_wdata_int};
     end else begin
       rvfi_mem_addr_d  = rvfi_mem_addr_q;
       rvfi_mem_wdata_d = rvfi_mem_wdata_q;
@@ -1642,7 +1646,8 @@ module ibex_core import ibex_pkg::*; #(
   // Capture read data from LSU when it becomes valid
   always_comb begin
     if (lsu_resp_valid) begin
-      rvfi_mem_rdata_d = {32'h0, rf_wdata_int_lsu};
+      rvfi_mem_rdata_d = rvfi_mem_mask_int == 8'b1111_1111 ? lsu_rdata_mem_cap[63:0]
+                                                           : {32'h0, rf_wdata_int_lsu};
     end else begin
       rvfi_mem_rdata_d = rvfi_mem_rdata_q;
     end
