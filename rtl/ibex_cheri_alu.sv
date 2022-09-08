@@ -484,7 +484,7 @@ module ibex_cheri_alu #(
             a_setKind_cap_i = operand_a_i;
             // TODO this will need to be changed
             a_setKind_i = b_getAddr_o[KindWidth-1:0];
-            result_o = !b_is_ok ? operand_a_i : a_setKind_o;
+            result_o = !b_is_ok | !a_is_ok ? operand_a_i : a_setKind_o;
             wrote_capability = 1'b1;
 
             exceptions_a_o[TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
