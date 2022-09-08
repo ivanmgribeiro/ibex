@@ -385,12 +385,10 @@ module ibex_cheri_alu #(
             alu_operator_o = ALU_ADD;
 
             result_o = operand_b_i == '0 ? operand_b_i
-                     : a_setOffset_o[CheriCapWidth] ? a_setOffset_o[CheriCapWidth-1:0]
-                     : {{(CheriCapWidth-IntWidth){1'b0}}, alu_result_i[IntWidth-1:0]};
+                     : a_setOffset_o[CheriCapWidth-1:0];
+                     //: {{(CheriCapWidth-IntWidth){1'b0}}, alu_result_i[IntWidth-1:0]};
 
-            wrote_capability = operand_b_i == '0 ? 1'b0
-                             : a_setOffset_o[CheriCapWidth] ? 1'b1
-                             : 1'b0;
+            wrote_capability = operand_b_i != '0;
 
             exceptions_a_o[ TAG_VIOLATION] = operand_b_i != 0 && exceptions_a[ TAG_VIOLATION];
             exceptions_a_o[SEAL_VIOLATION] = operand_b_i != 0 && exceptions_a[SEAL_VIOLATION];
