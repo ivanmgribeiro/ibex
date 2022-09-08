@@ -5,6 +5,7 @@ module ibex_cheri_alu #(
   input ibex_pkg::cheri_base_opcode_e             base_opcode_i,
   input ibex_pkg::cheri_threeop_funct7_e          threeop_opcode_i,
   input ibex_pkg::cheri_s_a_d_funct5_e  s_a_d_opcode_i,
+  input logic                                     instr_first_cycle_i,
 
   input logic [CheriCapWidth-1:0] operand_a_i,
   input logic [CheriCapWidth-1:0] operand_b_i,
@@ -143,7 +144,14 @@ module ibex_cheri_alu #(
   logic [CheriCapWidth-1:0] b_setValidCap_o;
 
   logic [   IntWidth-1:0] a_setAddr_i;
+  // This signal is used as the input for another module inside the
+  // always_comb block, which leads Verilator to output UNOPTFLAT and
+  // IMPERFECTSCH warnings; silence these here
+  // verilator lint_off UNOPTFLAT
+  // verilator lint_off IMPERFECTSCH
   logic [CheriCapWidth:0] a_setAddr_o;
+  // verilator lint_on IMPERFECTSCH
+  // verilator lint_on UNOPTFLAT
 
   logic [   IntWidth-1:0] b_setAddr_i;
   logic [CheriCapWidth:0] b_setAddr_o;
@@ -555,6 +563,41 @@ module ibex_cheri_alu #(
           //end
           */
 
+          C_INVOKE: begin
+            logic [IntWidth-1:0] new_addr = {a_getAddr_o[IntWidth-1:1], 1'b0};
+            // first cycle operations (unseal capability a and clear lowest bit)
+            a_setAddr_i = new_addr;
+            a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0]; // discard "exact" bit
+            a_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability a
+
+            // second cycle operations (unseal capability b)
+            b_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability b
+
+            wrote_capability = 1'b1;
+            result_o = instr_first_cycle_i ? a_setKind_o : b_setKind_o;
+
+            // check if we can fetch a full instruction with the bounds on this capability
+            alu_operand_a_o = new_addr;
+            alu_operand_b_o = 2;
+            alu_operator_o  = ALU_ADD;
+
+            exceptions_a_o[           TAG_VIOLATION] =  exceptions_a[           TAG_VIOLATION];
+            // capability a SHOULD be sealed
+            exceptions_a_o[          SEAL_VIOLATION] = ~exceptions_a[          SEAL_VIOLATION];
+            exceptions_a_o[          TYPE_VIOLATION] =  a_getKind_o != b_getKind_o;
+            exceptions_a_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_a[PERMIT_CINVOKE_VIOLATION];
+            exceptions_a_o[PERMIT_EXECUTE_VIOLATION] =  exceptions_a[PERMIT_EXECUTE_VIOLATION];
+            exceptions_a_o[        LENGTH_VIOLATION] =  new_addr < a_getBase_o
+                                                     |  alu_result_i > a_getTop_o;
+
+            exceptions_b_o[           TAG_VIOLATION] =  exceptions_b[           TAG_VIOLATION];
+            // capability b SHOULD be sealed
+            exceptions_b_o[          SEAL_VIOLATION] = ~exceptions_b[          SEAL_VIOLATION];
+            // capability b SHOULD NOT be executable (it should be a data capability)
+            exceptions_b_o[PERMIT_EXECUTE_VIOLATION] = ~exceptions_b[PERMIT_EXECUTE_VIOLATION];
+            exceptions_b_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_b[PERMIT_CINVOKE_VIOLATION];
+          end
+
           SOURCE_AND_DEST: begin
             case(s_a_d_opcode_i)
               C_GET_PERM: begin
@@ -664,21 +707,37 @@ module ibex_cheri_alu #(
                 // issue is this isn't a very clean way of doing this - we need to fake incoffsetimm instruction
                 // in the decoder. However, ibex already does it this way.
 
-                a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
-                result_o = a_setAddr_o[CheriCapWidth-1:0];
+                if (instr_first_cycle_i) begin
+                  // for exception checking
+                  alu_operand_a_o = {a_getAddr_o[IntWidth-1:1], 1'b0};
+                  alu_operand_b_o = 2; // The minimum instruction size in bytes
+                  alu_operator_o = ALU_ADD;
+
+                  a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
+                  result_o = a_setAddr_o[CheriCapWidth-1:0];
+                end else begin
+                  alu_operand_a_o = a_getAddr_o;
+                  alu_operand_b_o = 4;
+                  alu_operator_o  = ALU_ADD;
+                  a_setAddr_i     = alu_result_i[IntWidth-1:0];
+                  a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
+                  a_setKind_i     = 7'h1E;
+                  result_o        = a_setKind_o;
+                end
+
                 wrote_capability = 1'b1;
 
-                alu_operand_a_o = {a_getAddr_o[IntWidth-1:1], 1'b0};
-                alu_operand_b_o = 2; // The minimum instruction size in bytes
-                alu_operator_o = ALU_ADD;
-
-                exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
-                exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
-                exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
-                exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
-                                                         | (alu_result_i > a_getTop_o);
-                // we don't care about trying to throw the last exception since we do support
-                // compressed instructions
+                if (instr_first_cycle_i) begin
+                  exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
+                  // capabilities sealed as Sentries are allowed
+                  exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION]
+                                                           & a_getKind_o != 7'h1E;
+                  exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
+                  exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
+                                                           | (alu_result_i > a_getTop_o);
+                  // we don't care about trying to throw the last exception since we do support
+                  // compressed instructions
+                end
 
                 if (Verbosity) begin
                   $display("cjalr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -951,10 +1010,10 @@ module_wrap64_isInBounds module_isInBounds_b (
       exceptions_b[PERMIT_EXECUTE_VIOLATION] = 1'b1;
 
     if (!a_getPerms_o[PermitCInvokeIndex])
-      exceptions_a[PERMIT_CCALL_VIOLATION] = 1'b1;
+      exceptions_a[PERMIT_CINVOKE_VIOLATION] = 1'b1;
 
     if (!b_getPerms_o[PermitCInvokeIndex])
-      exceptions_b[PERMIT_CCALL_VIOLATION] = 1'b1;
+      exceptions_b[PERMIT_CINVOKE_VIOLATION] = 1'b1;
 
   end
 endmodule

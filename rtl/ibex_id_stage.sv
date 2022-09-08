@@ -967,7 +967,9 @@ module ibex_id_stage #(
             jump_in_dec: begin
               // uncond branch operation
               // BTALU means jumps only need one cycle
-              id_fsm_d      = BranchTargetALU ? FIRST_CYCLE : MULTI_CYCLE;
+              // with CHERI, jumps can throw exceptions in ID (CJALR and
+              // CInvoke). When this is the case, go to FIRST_CYCLE
+              id_fsm_d      = BranchTargetALU | id_exception ? FIRST_CYCLE : MULTI_CYCLE;
               stall_jump    = ~BranchTargetALU;
               jump_set_raw  = jump_set_dec;
             end

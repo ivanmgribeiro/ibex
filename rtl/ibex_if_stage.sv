@@ -95,6 +95,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   input  exc_pc_sel_e                 exc_pc_mux_i,             // selects ISR address
   input  exc_cause_t                  exc_cause,                // selects ISR address for
                                                                 // vectorized interrupt lines
+  input  logic                        branch_is_cap_i,
   input  logic                        dummy_instr_en_i,
   input  logic [2:0]                  dummy_instr_mask_i,
   input  logic                        dummy_instr_seed_en_i,
@@ -104,7 +105,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic                        icache_ecc_error_o,
 
   // jump and branch target
-  input  logic [31:0]                 branch_target_ex_i,       // branch/jump target address
+  input  logic [CheriCapWidth-1:0]    branch_target_ex_i,       // branch/jump target address
+  input  logic                        branch_exc_i,             // whether the branch caused an exception
   output logic [31:0]                 pc_set_target_o,          // when PC is set, this will be the
                                                                 // PC that will be jumped to
 
@@ -217,7 +219,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     unique case (pc_mux_internal)
       // TODO TestRIG does not support having an offset of 80 in the reset PC
       PC_BOOT: fetch_addr_n = boot_addr_i;
-      PC_JUMP: fetch_addr_n = branch_target_ex_i;
+      PC_JUMP: fetch_addr_n = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
       PC_EXC:  fetch_addr_n = exc_pc;                       // set PC to exception handler
       PC_ERET: fetch_addr_n = csr_mepc_i;                   // restore PC when returning from EXC
       PC_DRET: fetch_addr_n = csr_depc_i;
@@ -519,7 +521,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         pcc_id_o                 <= CheriNullCap;
         pcc_q                    <= CheriAlmightyCap;
       end else begin
-        pcc_q <= pcc_if_o;
+        pcc_q <= pc_set_i & (branch_is_cap_i | pc_mux_internal == PC_BOOT) ? branch_target_ex_i : pcc_if_o;
         if (if_id_pipe_reg_we) begin
           instr_rdata_id_o         <= instr_out;
           // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -536,7 +538,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     end
   end else begin : g_instr_rdata_nr
     always_ff @(posedge clk_i) begin
-      pcc_q <= pcc_if_o;
+      pcc_q <= pc_set_i & branch_is_cap_i & pc_mux_internal == PC_JUMP & ~branch_exc_i ? branch_target_ex_i : pcc_if_o;
       if (if_id_pipe_reg_we) begin
         instr_rdata_id_o         <= instr_out;
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -703,8 +705,10 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   // CHERI module instantiations
   logic [CheriCapWidth-1:0] pcc_setOffset_cap;
+  logic [31:0] cheri_target_offset;
   assign pcc_setOffset_cap = pc_set_i & pc_mux_internal == PC_BOOT ? CheriAlmightyCap : pcc_q;
   module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap, if_instr_addr, {unused_pcc_setOffset_exact, pcc_if_o});
+  module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
 
   ////////////////
   // Assertions //

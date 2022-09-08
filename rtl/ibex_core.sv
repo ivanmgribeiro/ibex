@@ -217,9 +217,11 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] lsu_addr_last;
 
   // Jump and branch target and decision (EX->IF)
-  logic [31:0] branch_target_ex;
-  logic        branch_decision;
-  logic [31:0] if_pc_set_target;
+  logic [CheriCapWidth-1:0] branch_target_ex;
+  logic                     branch_exc;
+  logic                     branch_decision;
+  logic                     branch_is_cap;
+  logic [31:0]              if_pc_set_target;
 
   // Core busy signals
   logic        ctrl_busy;
@@ -493,6 +495,7 @@ module ibex_core import ibex_pkg::*; #(
     .nt_branch_mispredict_i(nt_branch_mispredict),
     .exc_pc_mux_i          (exc_pc_mux_id),
     .exc_cause             (exc_cause),
+    .branch_is_cap_i       (branch_is_cap),
     .dummy_instr_en_i      (dummy_instr_en),
     .dummy_instr_mask_i    (dummy_instr_mask),
     .dummy_instr_seed_en_i (dummy_instr_seed_en),
@@ -503,6 +506,7 @@ module ibex_core import ibex_pkg::*; #(
 
     // branch targets
     .branch_target_ex_i(branch_target_ex),
+    .branch_exc_i      (branch_exc),
     .pc_set_target_o   (if_pc_set_target),
     .nt_branch_addr_i  (nt_branch_addr),
 
@@ -802,7 +806,9 @@ module ibex_core import ibex_pkg::*; #(
     .result_ex_o          (result_ex),  // to ID
 
     .branch_target_o  (branch_target_ex),  // to IF
+    .branch_exc_o     (branch_exc),       // to IF
     .branch_decision_o(branch_decision),  // to ID
+    .branch_is_cap_o  (branch_is_cap),
 
     .ex_valid_o(ex_valid)
   );

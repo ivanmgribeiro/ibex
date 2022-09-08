@@ -62,12 +62,14 @@ module ibex_ex_block #(
   output logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_o,
 
   // Outputs
-  output logic [31:0]           alu_adder_result_ex_o, // to LSU
-  output logic [31:0]           result_ex_o,
-  output logic [31:0]           branch_target_o,       // to IF
-  output logic                  branch_decision_o,     // to ID
+  output logic [31:0]              alu_adder_result_ex_o, // to LSU
+  output logic [31:0]              result_ex_o,
+  output logic [CheriCapWidth-1:0] branch_target_o,       // to IF
+  output logic                     branch_exc_o,
+  output logic                     branch_decision_o,     // to ID
+  output logic                     branch_is_cap_o,
 
-  output logic                  ex_valid_o             // EX has valid output
+  output logic                     ex_valid_o             // EX has valid output
 );
 
   import ibex_pkg::*;
@@ -86,13 +88,23 @@ module ibex_ex_block #(
   logic [ 1:0] multdiv_imd_val_we;
 
   // signals between the CHERI ALU and the integer ALU
+  // This is in the always_comb block inside the CHERI ALU using the output of
+  // some other modules and its result is then used as an input to modules
+  // within the same always_comb, which generates these verilator warnings,
+  // so the warnings are silenced here
+  // verilator lint_off UNOPTFLAT
+  // verilator lint_off IMPERFECTSCH
   logic [31:0] cheri_int_alu_operand_a;
+  // verilator lint_on IMPERFECTSCH
+  // verilator lint_on UNOPTFLAT
   logic [31:0] cheri_int_alu_operand_b;
   alu_op_e     cheri_int_alu_operator;
 
   alu_op_e     alu_operator;
   logic [31:0] alu_operand_a;
   logic [31:0] alu_operand_b;
+
+  logic [31:0] branch_target;
 
   /*
     The multdiv_i output is never selected if RV32M=RV32MNone
@@ -129,7 +141,7 @@ module ibex_ex_block #(
     assign bt_alu_result   = bt_a_operand_i + bt_b_operand_i;
 
     assign unused_bt_carry = bt_alu_result[32];
-    assign branch_target_o = bt_alu_result[31:0];
+    assign branch_target   = bt_alu_result[31:0];
   end else begin : g_no_branch_target_alu
     // Unused bt_operand signals cause lint errors, this avoids them
     logic [31:0] unused_bt_a_operand, unused_bt_b_operand;
@@ -137,8 +149,13 @@ module ibex_ex_block #(
     assign unused_bt_a_operand = bt_a_operand_i;
     assign unused_bt_b_operand = bt_b_operand_i;
 
-    assign branch_target_o = alu_adder_result_ex_o;
+    assign branch_target = alu_adder_result_ex_o;
   end
+
+  assign branch_target_o = cheri_en_i ? cheri_result_o
+                                      : {{(CheriCapWidth-32){1'b0}}, branch_target};
+  assign branch_is_cap_o = cheri_en_i;
+  assign branch_exc_o    = cheri_en_i & (|cheri_exceptions_a_o | |cheri_exceptions_b_o);
 
   /////////
   // ALU //
@@ -236,6 +253,7 @@ module ibex_ex_block #(
     .base_opcode_i    (cheri_base_opcode_i),
     .threeop_opcode_i (cheri_threeop_opcode_i),
     .s_a_d_opcode_i   (cheri_s_a_d_opcode_i),
+    .instr_first_cycle_i(alu_instr_first_cycle_i),
 
     .operand_a_i   (cheri_operand_a_i),
     .operand_b_i   (cheri_operand_b_i),

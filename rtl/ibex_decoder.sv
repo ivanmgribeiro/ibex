@@ -154,6 +154,8 @@ module ibex_decoder #(
   cheri_threeop_funct7_e cheri_threeop_opcode;
   cheri_s_a_d_funct5_e   cheri_s_a_d_opcode;
 
+  logic overwrite_rf_waddr;
+
   assign cheri_base_opcode    = cheri_base_opcode_e'    (instr[14:12]);
   assign cheri_threeop_opcode = cheri_threeop_funct7_e' (instr[31:25]);
   assign cheri_s_a_d_opcode   = cheri_s_a_d_funct5_e'   (instr[24:20]);
@@ -208,8 +210,8 @@ module ibex_decoder #(
 
   // destination register
   assign instr_rd = instr[11:7];
-  // TODO this will have to be changed when implementing CInvoke is implemented
-  assign rf_waddr_o   = instr_rd; // rd
+  // CInvoke always writes to register 31
+  assign rf_waddr_o   = overwrite_rf_waddr ? 5'd31 : instr_rd; // rd
 
   ////////////////////
   // Register check //
@@ -256,6 +258,7 @@ module ibex_decoder #(
     rf_we                 = 1'b0;
     rf_ren_a_o            = 1'b0;
     rf_ren_b_o            = 1'b0;
+    overwrite_rf_waddr    = 1'b0;
 
     csr_access_o          = 1'b0;
     csr_illegal           = 1'b0;
@@ -719,7 +722,15 @@ module ibex_decoder #(
                 rf_we = 1'b1;
               end
               C_INVOKE: begin
-                // TODO
+                jump_in_dec_o = 1'b1;
+                if (~instr_first_cycle_i) begin
+                  overwrite_rf_waddr = 1'b1;
+                  jump_set_o = 1'b1;
+                  rf_we = 1'b0;
+                end else begin
+                  jump_set_o = 1'b0;
+                  rf_we = 1'b1;
+                end
               end
               C_SPECIAL_RW: begin
                 if ((rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) // writing to PCC is illegal
@@ -1393,7 +1404,8 @@ module ibex_decoder #(
               end
 
               C_INVOKE: begin
-                // TODO
+                cheri_op_a_mux_sel_o = CHERI_OP_A_REG_CAP;
+                cheri_op_b_mux_sel_o = CHERI_OP_B_REG_CAP;
               end
 
               C_SPECIAL_RW: begin
@@ -1450,7 +1462,6 @@ module ibex_decoder #(
                       cheri_op_b_mux_sel_o = CHERI_OP_B_PCC;
                     end else begin
                       // Calculate and store PCC+4
-                      cheri_base_opcode_o   = C_INC_OFFSET_IMM;
                       cheri_op_a_mux_sel_o  = CHERI_OP_A_PCC;
                       cheri_op_b_mux_sel_o  = CHERI_OP_B_IMM;
                       cheri_imm_b_mux_sel_o = CHERI_IMM_B_INCR_PC;
