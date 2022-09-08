@@ -129,11 +129,12 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   logic              instr_err, instr_intg_err;
 
+  logic [CheriCapWidth-1:0] pcc_q;
+
   // prefetch buffer related signals
   logic              prefetch_busy;
   logic              branch_req;
   logic       [31:0] fetch_addr_n;
-  logic              unused_fetch_addr_n0;
 
   logic              prefetch_branch;
   logic [31:0]       prefetch_addr;
@@ -386,8 +387,6 @@ module ibex_if_stage import ibex_pkg::*; #(
 `endif
   end
 
-  assign unused_fetch_addr_n0 = fetch_addr_n[0];
-
   assign branch_req  = pc_set_i | predict_branch_taken;
 
   assign pc_if_o     = if_instr_addr;
@@ -518,21 +517,26 @@ module ibex_if_stage import ibex_pkg::*; #(
         illegal_c_insn_id_o      <= '0;
         pc_id_o                  <= '0;
         pcc_id_o                 <= CheriNullCap;
-      end else if (if_id_pipe_reg_we) begin
-        instr_rdata_id_o         <= instr_out;
-        // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
-        instr_rdata_alu_id_o     <= instr_out;
-        instr_fetch_err_o        <= instr_err_out;
-        instr_fetch_err_plus2_o  <= if_instr_err_plus2;
-        instr_rdata_c_id_o       <= if_instr_rdata[15:0];
-        instr_is_compressed_id_o <= instr_is_compressed_out;
-        illegal_c_insn_id_o      <= illegal_c_instr_out;
-        pc_id_o                  <= pc_if_o;
-        pcc_id_o                 <= pcc_if_o;
+        pcc_q                    <= CheriAlmightyCap;
+      end else begin
+        pcc_q <= pcc_if_o;
+        if (if_id_pipe_reg_we) begin
+          instr_rdata_id_o         <= instr_out;
+          // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
+          instr_rdata_alu_id_o     <= instr_out;
+          instr_fetch_err_o        <= instr_err_out;
+          instr_fetch_err_plus2_o  <= if_instr_err_plus2;
+          instr_rdata_c_id_o       <= if_instr_rdata[15:0];
+          instr_is_compressed_id_o <= instr_is_compressed_out;
+          illegal_c_insn_id_o      <= illegal_c_instr_out;
+          pc_id_o                  <= pc_if_o;
+          pcc_id_o                 <= pcc_if_o;
+        end
       end
     end
   end else begin : g_instr_rdata_nr
     always_ff @(posedge clk_i) begin
+      pcc_q <= pcc_if_o;
       if (if_id_pipe_reg_we) begin
         instr_rdata_id_o         <= instr_out;
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -698,7 +702,9 @@ module ibex_if_stage import ibex_pkg::*; #(
 
 
   // CHERI module instantiations
-  module_wrap64_setOffset almighty_setOffset(CheriAlmightyCap, pc_if_o, {unused_pcc_setOffset_exact, pcc_if_o});
+  logic [CheriCapWidth-1:0] pcc_setOffset_cap;
+  assign pcc_setOffset_cap = pc_set_i & pc_mux_internal == PC_BOOT ? CheriAlmightyCap : pcc_q;
+  module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap, if_instr_addr, {unused_pcc_setOffset_exact, pcc_if_o});
 
   ////////////////
   // Assertions //
