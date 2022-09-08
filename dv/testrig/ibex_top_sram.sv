@@ -47,7 +47,7 @@ module ibex_top_sram import ibex_pkg::*; #(
   input  logic                         instr_gnt_i,
   input  logic                         instr_rvalid_i,
   output logic [31:0]                  instr_addr_o,
-  input  logic [31:0]                  instr_rdata_i,
+  input  logic [32:0]                  instr_rdata_i,
   input  logic [6:0]                   instr_rdata_intg_i,
   input  logic                         instr_err_i,
 
@@ -59,9 +59,9 @@ module ibex_top_sram import ibex_pkg::*; #(
   output logic                         data_we_o,
   output logic [3:0]                   data_be_o,
   output logic [31:0]                  data_addr_o,
-  output logic [31:0]                  data_wdata_o,
+  output logic [32:0]                  data_wdata_o,
   output logic [6:0]                   data_wdata_intg_o,
-  input  logic [31:0]                  data_rdata_i,
+  input  logic [32:0]                  data_rdata_i,
   input  logic [6:0]                   data_rdata_intg_i,
   input  logic                         data_err_i,
 
@@ -169,7 +169,7 @@ module ibex_top_sram import ibex_pkg::*; #(
     .instr_gnt_i,
     .instr_rvalid_i,
     .instr_addr_o,
-    .instr_rdata_i,
+    .instr_rdata_i(instr_rdata_i[31:0]),
     .instr_rdata_intg_i,
     .instr_err_i,
 

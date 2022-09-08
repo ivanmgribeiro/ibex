@@ -754,10 +754,55 @@ module ibex_decoder #(
                 end
               end
               C_STORE: begin
-                // TODO
+                cheri_en_o         = 1'b1;
+                rf_ren_a_o         = 1'b1;
+                rf_ren_b_o         = 1'b1;
+                data_req_o         = 1'b1;
+                data_we_o          = 1'b1;
+
+                mem_ddc_relative_o = ~instr[10];
+                use_cap_base_o     = 1'b0;
+                if (instr[11] || instr[9]) begin
+                  illegal_insn = 1'b1;
+                end
+
+                // store size
+                unique case (instr[8:7])
+                  2'b00:   data_type_o  = 2'b10; // sb
+                  2'b01:   data_type_o  = 2'b01; // sh
+                  2'b10:   data_type_o  = 2'b00; // sw
+                  2'b11: begin // store double via cap not allowed in RV32
+                    data_type_o      = 2'b11;
+                    mem_cap_access_o = 1'b1;
+                  end
+                endcase
               end
               C_LOAD: begin
-                // TODO
+                rf_ren_a_o          = 1'b1;
+                data_req_o          = 1'b1;
+                data_type_o         = 2'b00;
+
+                mem_ddc_relative_o  = ~instr[23];
+                use_cap_base_o      = 1'b0;
+
+                // sign/zero extension
+                data_sign_extension_o = ~instr[22];
+
+                // load size
+                unique case (instr[21:20])
+                  2'b00: data_type_o = 2'b10; // lb(u)
+                  2'b01: data_type_o = 2'b01; // lh(u)
+                  2'b10: begin
+                    data_type_o = 2'b00;      // lw
+                    if (instr[14]) begin
+                      illegal_insn = 1'b1;    // lwu does not exist
+                    end
+                  end
+                  2'b11: begin
+                    data_type_o      = 2'b11; // load double
+                    mem_cap_access_o = 1'b1;
+                  end
+                endcase
               end
               SOURCE_AND_DEST: begin
                 rf_we = 1'b1;
@@ -1439,11 +1484,17 @@ module ibex_decoder #(
                 end
               end
               C_STORE: begin
-                // TODO
+                alu_op_a_mux_sel_o = OP_A_REG_A;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o    = IMM_B_ZERO;
+                alu_operator_o     = ALU_ADD;
               end
 
               C_LOAD: begin
-                // TODO
+                alu_op_a_mux_sel_o = OP_A_REG_A;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o    = IMM_B_ZERO;
+                alu_operator_o     = ALU_ADD;
               end
 
               SOURCE_AND_DEST: begin

@@ -44,7 +44,7 @@ struct Mem_Access {
     std::uint32_t addr;
     bool          write;
     std::uint8_t  be;
-    std::uint32_t data;
+    std::uint64_t data;
 };
 
 RVFI_DII_Execution_Packet readRVFI(Vibex_top_sram *top, bool signExtend);

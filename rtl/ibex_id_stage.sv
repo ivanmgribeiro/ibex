@@ -389,6 +389,7 @@ module ibex_id_stage #(
         IMM_B_U:         imm_b = imm_u_type;
         IMM_B_INCR_PC:   imm_b = instr_is_compressed_i ? 32'h2 : 32'h4;
         IMM_B_INCR_ADDR: imm_b = 32'h4;
+        IMM_B_ZERO:      imm_b = 0;
         default:         imm_b = 32'h4;
       endcase
     end
@@ -397,7 +398,8 @@ module ibex_id_stage #(
         IMM_B_S,
         IMM_B_U,
         IMM_B_INCR_PC,
-        IMM_B_INCR_ADDR})
+        IMM_B_INCR_ADDR,
+        IMM_B_ZERO})
   end else begin : g_nobtalu
     op_a_sel_e  unused_a_mux_sel;
     imm_b_sel_e unused_b_mux_sel;
@@ -417,6 +419,7 @@ module ibex_id_stage #(
         IMM_B_J:         imm_b = imm_j_type;
         IMM_B_INCR_PC:   imm_b = instr_is_compressed_i ? 32'h2 : 32'h4;
         IMM_B_INCR_ADDR: imm_b = 32'h4;
+        IMM_B_ZERO:      imm_b = 0;
         default:         imm_b = 32'h4;
       endcase
     end
@@ -427,7 +430,8 @@ module ibex_id_stage #(
         IMM_B_U,
         IMM_B_J,
         IMM_B_INCR_PC,
-        IMM_B_INCR_ADDR})
+        IMM_B_INCR_ADDR,
+        IMM_B_ZERO})
   end
 
   // ALU MUX for Operand B

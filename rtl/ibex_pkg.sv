@@ -411,7 +411,8 @@ package ibex_pkg;
     IMM_B_U,
     IMM_B_J,
     IMM_B_INCR_PC,
-    IMM_B_INCR_ADDR
+    IMM_B_INCR_ADDR,
+    IMM_B_ZERO
   } imm_b_sel_e;
 
   // CHERI Immediate B selection

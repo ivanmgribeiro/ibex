@@ -43,7 +43,7 @@ module ibex_core import ibex_pkg::*; #(
   parameter bit          RegFileECC        = 1'b0,
   parameter int unsigned RegFileDataWidth  = 32,
   parameter bit          MemECC            = 1'b0,
-  parameter int unsigned MemDataWidth      = MemECC ? 32 + 7 : 32,
+  parameter int unsigned MemDataWidth      = MemECC ? 32 + 7 : 33,
   parameter int unsigned DmHaltAddr        = 32'h1A110800,
   parameter int unsigned DmExceptionAddr   = 32'h1A110808
 ) (
