@@ -134,10 +134,10 @@ module ibex_core import ibex_pkg::*; #(
   output logic [31:0]                  rvfi_pc_rdata,
   output logic [31:0]                  rvfi_pc_wdata,
   output logic [31:0]                  rvfi_mem_addr,
-  output logic [ 3:0]                  rvfi_mem_rmask,
-  output logic [ 3:0]                  rvfi_mem_wmask,
-  output logic [31:0]                  rvfi_mem_rdata,
-  output logic [31:0]                  rvfi_mem_wdata,
+  output logic [ 7:0]                  rvfi_mem_rmask,
+  output logic [ 7:0]                  rvfi_mem_wmask,
+  output logic [63:0]                  rvfi_mem_rdata,
+  output logic [63:0]                  rvfi_mem_wdata,
   output logic [31:0]                  rvfi_ext_mip,
   output logic                         rvfi_ext_nmi,
   output logic                         rvfi_ext_debug_req,
@@ -1281,10 +1281,10 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] rvfi_stage_pc_rdata  [RVFI_STAGES];
   logic [31:0] rvfi_stage_pc_wdata  [RVFI_STAGES];
   logic [31:0] rvfi_stage_mem_addr  [RVFI_STAGES];
-  logic [ 3:0] rvfi_stage_mem_rmask [RVFI_STAGES];
-  logic [ 3:0] rvfi_stage_mem_wmask [RVFI_STAGES];
-  logic [31:0] rvfi_stage_mem_rdata [RVFI_STAGES];
-  logic [31:0] rvfi_stage_mem_wdata [RVFI_STAGES];
+  logic [ 7:0] rvfi_stage_mem_rmask [RVFI_STAGES];
+  logic [ 7:0] rvfi_stage_mem_wmask [RVFI_STAGES];
+  logic [63:0] rvfi_stage_mem_rdata [RVFI_STAGES];
+  logic [63:0] rvfi_stage_mem_wdata [RVFI_STAGES];
 
   logic        rvfi_instr_new_wb;
   logic        rvfi_intr_d;
@@ -1309,11 +1309,11 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] rvfi_rd_wdata_d;
   logic [31:0] rvfi_rd_wdata_q;
   logic        rvfi_rd_we_wb;
-  logic [3:0]  rvfi_mem_mask_int;
-  logic [31:0] rvfi_mem_rdata_d;
-  logic [31:0] rvfi_mem_rdata_q;
-  logic [31:0] rvfi_mem_wdata_d;
-  logic [31:0] rvfi_mem_wdata_q;
+  logic [7:0]  rvfi_mem_mask_int;
+  logic [63:0] rvfi_mem_rdata_d;
+  logic [63:0] rvfi_mem_rdata_q;
+  logic [63:0] rvfi_mem_wdata_d;
+  logic [63:0] rvfi_mem_wdata_q;
   logic [31:0] rvfi_mem_addr_d;
   logic [31:0] rvfi_mem_addr_q;
   logic        rvfi_trap_id;
@@ -1571,7 +1571,7 @@ module ibex_core import ibex_pkg::*; #(
             rvfi_stage_pc_rdata[i]        <= pc_id;
             rvfi_stage_pc_wdata[i]        <= pc_set ? if_pc_set_target : pc_if;
             rvfi_stage_mem_rmask[i]       <= rvfi_mem_mask_int;
-            rvfi_stage_mem_wmask[i]       <= data_we_o ? rvfi_mem_mask_int : 4'b0000;
+            rvfi_stage_mem_wmask[i]       <= data_we_o ? rvfi_mem_mask_int : 8'b0000_0000;
             rvfi_stage_rs1_rdata[i]       <= rvfi_rs1_data_d;
             rvfi_stage_rs2_rdata[i]       <= rvfi_rs2_data_d;
             rvfi_stage_rs3_rdata[i]       <= rvfi_rs3_data_d;
@@ -1630,7 +1630,9 @@ module ibex_core import ibex_pkg::*; #(
   always_comb begin
     if (instr_first_cycle_id) begin
       rvfi_mem_addr_d  = alu_adder_result_ex;
-      rvfi_mem_wdata_d = lsu_wdata_int; // TODO get address of cap when wcap is active
+      // TODO fill upper bits of data
+      // TODO in-memory capability representation
+      rvfi_mem_wdata_d = {32'h0, lsu_wdata_int};
     end else begin
       rvfi_mem_addr_d  = rvfi_mem_addr_q;
       rvfi_mem_wdata_d = rvfi_mem_wdata_q;
@@ -1640,7 +1642,7 @@ module ibex_core import ibex_pkg::*; #(
   // Capture read data from LSU when it becomes valid
   always_comb begin
     if (lsu_resp_valid) begin
-      rvfi_mem_rdata_d = rf_wdata_int_lsu;
+      rvfi_mem_rdata_d = {32'h0, rf_wdata_int_lsu};
     end else begin
       rvfi_mem_rdata_d = rvfi_mem_rdata_q;
     end
@@ -1660,10 +1662,10 @@ module ibex_core import ibex_pkg::*; #(
   // Byte enable based on data type
   always_comb begin
     unique case (lsu_type)
-      2'b00:   rvfi_mem_mask_int = 4'b1111;
-      2'b01:   rvfi_mem_mask_int = 4'b0011;
-      2'b10:   rvfi_mem_mask_int = 4'b0001;
-      default: rvfi_mem_mask_int = 4'b0000;
+      2'b00:   rvfi_mem_mask_int = 8'b0000_1111;
+      2'b01:   rvfi_mem_mask_int = 8'b0000_0011;
+      2'b10:   rvfi_mem_mask_int = 8'b0000_0001;
+      2'b11:   rvfi_mem_mask_int = 8'b1111_1111;
     endcase
   end
 
