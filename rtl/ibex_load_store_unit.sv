@@ -29,6 +29,7 @@ module ibex_load_store_unit #(
   input  logic         data_rvalid_i,
   input  logic         data_bus_err_i,
   input  logic         data_pmp_err_i,
+  input  logic [ibex_pkg::CheriExcWidth-1:0] data_cheri_err_i,
 
   output logic [31:0]             data_addr_o,
   output logic                    data_we_o,
@@ -110,6 +111,8 @@ module ibex_load_store_unit #(
   logic         lsu_err_q, lsu_err_d;
   logic         lsu_misalign_err_q, lsu_misalign_err_d;
   logic         data_intg_err, data_or_pmp_err;
+  logic         data_cheri_err_any;
+  assign        data_cheri_err_any = |data_cheri_err_i;
 
   logic [64:0]  wdata_mem_cap;
   logic [32:0]  rdata_mem_cap_lower_q;
@@ -469,13 +472,13 @@ module ibex_load_store_unit #(
           // Update the PMP error for the second part
           pmp_err_d = data_pmp_err_i;
           // Record the error status of the first part
-          lsu_err_d = data_bus_err_i | pmp_err_q;
+          lsu_err_d = data_bus_err_i | pmp_err_q | data_cheri_err_any;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // If already granted, wait for second rvalid
           ls_fsm_ns = data_gnt_i ? IDLE : WAIT_GNT;
           // Update the address for the second part, if no error
-          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q);
+          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q | data_cheri_err_any);
           // clear handle_misaligned if second request is granted
           handle_misaligned_d = ~data_gnt_i;
         end else begin
@@ -511,9 +514,9 @@ module ibex_load_store_unit #(
           // Update the pmp error for the second part
           pmp_err_d = data_pmp_err_i;
           // The first part cannot see a PMP error in this state
-          lsu_err_d = data_bus_err_i;
+          lsu_err_d = data_bus_err_i | data_cheri_err_any;
           // Now we can update the address for the second part if no error
-          addr_update = ~data_bus_err_i;
+          addr_update = ~data_bus_err_i & ~data_cheri_err_any;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // Wait for second rvalid
@@ -547,13 +550,13 @@ module ibex_load_store_unit #(
           // Update the PMP error for the second part
           pmp_err_d = data_pmp_err_i;
           // Record the error status of the first part
-          lsu_err_d = data_bus_err_i | pmp_err_q;
+          lsu_err_d = data_bus_err_i | pmp_err_q | data_cheri_err_any;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // If already granted, wait for second rvalid
           ls_fsm_ns = data_gnt_i ? IDLE : WAIT_GNT;
           // Update the address for the second part, if no error
-          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q);
+          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q | data_cheri_err_any);
           // clear handle_misaligned if second request is granted
           handle_misaligned_d = ~data_gnt_i;
           lsu_wupper_d = ~data_gnt_i;
@@ -577,9 +580,9 @@ module ibex_load_store_unit #(
           // Update the pmp error for the second part
           pmp_err_d = data_pmp_err_i;
           // The first part cannot see a PMP error in this state
-          lsu_err_d = data_bus_err_i;
+          lsu_err_d = data_bus_err_i | data_cheri_err_any;
           // Now we can update the address for the second part if no error
-          addr_update = ~data_bus_err_i;
+          addr_update = ~data_bus_err_i & ~data_cheri_err_any;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // Wait for second rvalid
@@ -617,7 +620,7 @@ module ibex_load_store_unit #(
   // Outputs //
   /////////////
 
-  assign data_or_pmp_err    = lsu_err_q | data_bus_err_i | pmp_err_q;
+  assign data_or_pmp_err    = lsu_err_q | data_bus_err_i | pmp_err_q | data_cheri_err_any;
   assign lsu_resp_valid_o   = (data_rvalid_i | pmp_err_q) & (ls_fsm_cs == IDLE);
   assign lsu_rdata_valid_o  =
     (ls_fsm_cs == IDLE) & data_rvalid_i & ~data_or_pmp_err & ~data_we_q & ~data_intg_err;

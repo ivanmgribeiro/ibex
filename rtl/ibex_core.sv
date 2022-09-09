@@ -843,6 +843,7 @@ module ibex_core import ibex_pkg::*; #(
     .data_rvalid_i (data_rvalid_i),
     .data_bus_err_i(data_err_i),
     .data_pmp_err_i(pmp_req_err[PMP_D]),
+    .data_cheri_err_i(cheri_exceptions_lsu),
 
     .data_addr_o      (data_addr_o),
     .data_we_o        (data_we_o),
