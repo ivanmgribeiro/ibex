@@ -65,7 +65,6 @@ module ibex_ex_block #(
   output logic [31:0]              alu_adder_result_ex_o, // to LSU
   output logic [31:0]              result_ex_o,
   output logic [CheriCapWidth-1:0] branch_target_o,       // to IF
-  output logic                     branch_exc_o,
   output logic                     branch_decision_o,     // to ID
   output logic                     branch_is_cap_o,
 
@@ -155,7 +154,6 @@ module ibex_ex_block #(
   assign branch_target_o = cheri_en_i ? cheri_result_o
                                       : {{(CheriCapWidth-32){1'b0}}, branch_target};
   assign branch_is_cap_o = cheri_en_i;
-  assign branch_exc_o    = cheri_en_i & (|cheri_exceptions_a_o | |cheri_exceptions_b_o);
 
   /////////
   // ALU //

@@ -220,7 +220,6 @@ module ibex_core import ibex_pkg::*; #(
 
   // Jump and branch target and decision (EX->IF)
   logic [CheriCapWidth-1:0] branch_target_ex;
-  logic                     branch_exc;
   logic                     branch_decision;
   logic                     branch_is_cap;
   logic [31:0]              if_pc_set_target;
@@ -510,7 +509,6 @@ module ibex_core import ibex_pkg::*; #(
 
     // branch targets
     .branch_target_ex_i(branch_target_ex),
-    .branch_exc_i      (branch_exc),
     .pc_set_target_o   (if_pc_set_target),
     .nt_branch_addr_i  (nt_branch_addr),
 
@@ -814,7 +812,6 @@ module ibex_core import ibex_pkg::*; #(
     .result_ex_o          (result_ex),  // to ID
 
     .branch_target_o  (branch_target_ex),  // to IF
-    .branch_exc_o     (branch_exc),       // to IF
     .branch_decision_o(branch_decision),  // to ID
     .branch_is_cap_o  (branch_is_cap),
 

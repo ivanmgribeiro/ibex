@@ -106,7 +106,6 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   // jump and branch target
   input  logic [CheriCapWidth-1:0]    branch_target_ex_i,       // branch/jump target address
-  input  logic                        branch_exc_i,             // whether the branch caused an exception
   output logic [31:0]                 pc_set_target_o,          // when PC is set, this will be the
                                                                 // PC that will be jumped to
 
@@ -538,7 +537,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     end
   end else begin : g_instr_rdata_nr
     always_ff @(posedge clk_i) begin
-      pcc_q <= pc_set_i & branch_is_cap_i & pc_mux_internal == PC_JUMP & ~branch_exc_i ? branch_target_ex_i : pcc_if_o;
+      pcc_q <= pc_set_i & branch_is_cap_i & pc_mux_internal == PC_JUMP ? branch_target_ex_i : pcc_if_o;
       if (if_id_pipe_reg_we) begin
         instr_rdata_id_o         <= instr_out;
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
