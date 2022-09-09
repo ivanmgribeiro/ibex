@@ -47,6 +47,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   input  logic                        instr_bus_err_i,
   output logic                        instr_intg_err_o,
 
+  // CHERI exceptions
+  input logic [ibex_pkg::CheriExcWidth-1:0] instr_cheri_exc_i,
+  input logic                               instr_upper_exc_i,
+
   // ICache RAM IO
   output logic [IC_NUM_WAYS-1:0]      ic_tag_req_o,
   output logic                        ic_tag_write_o,
@@ -258,7 +262,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign instr_intg_err            = 1'b0;
   end
 
-  assign instr_err        = instr_intg_err | instr_bus_err_i;
+  assign instr_err        = instr_intg_err | (instr_bus_err_i | |instr_cheri_exc_i | instr_upper_exc_i);
   assign instr_intg_err_o = instr_intg_err & instr_rvalid_i;
 
   // There are two possible "branch please" signals that are computed in the IF stage: branch_req

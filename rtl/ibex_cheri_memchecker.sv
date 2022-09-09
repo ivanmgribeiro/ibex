@@ -1,5 +1,6 @@
 module ibex_cheri_memchecker #(
     parameter bit DataMem = 1'b1,
+    parameter bit StableOut = 1'b1;
     parameter int unsigned CheriCapWidth = 91
 ) (
     input logic clk_i,
@@ -18,7 +19,10 @@ module ibex_cheri_memchecker #(
     input logic        data_cap_i,
 
     // exceptions that have been caused
-    output logic [ibex_pkg::CheriExcWidth-1:0] cheri_mem_exc_o
+    output logic [ibex_pkg::CheriExcWidth-1:0] cheri_mem_exc_o,
+    // whether there was a length exception caused by fetching the second half
+    // of an instruction
+    output logic                               instr_upper_exc_o
 );
   import ibex_pkg::*;
 
@@ -75,6 +79,9 @@ module ibex_cheri_memchecker #(
   assign cheri_mem_exc_d[PERMIT_EXECUTE_VIOLATION] =  DataMem & ~auth_cap_getPerms_o[PermitExecuteIndex];
   assign cheri_mem_exc_d[        LENGTH_VIOLATION] = (data_addr_actual < auth_cap_getBase_o)
                                                      | ({1'b0, data_addr_actual} + data_size_ext > auth_cap_getTop_o);
+  // don't bother checking if it is below base (if it is, then there will be
+  // a length violation in the lower word anyway
+  assign instr_upper_exc_o                       = DataMem ? 0 : {1'b0, data_addr_actual_upper} > auth_cap_getTop_o;
 
   // only generate exceptions when requests are made
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -82,7 +89,7 @@ module ibex_cheri_memchecker #(
       cheri_mem_exc_q <= '0;
     end else if (data_req_i & data_gnt_i) begin
       cheri_mem_exc_q <= cheri_mem_exc_d;
-    end else begin
+    end else if (~StableOut) begin
       cheri_mem_exc_q <= '0;
     end
   end

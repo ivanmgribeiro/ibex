@@ -302,6 +302,8 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriExcWidth-1:0] cheri_exceptions_a_ex;
   logic [CheriExcWidth-1:0] cheri_exceptions_b_ex;
   logic [CheriExcWidth-1:0] cheri_exceptions_lsu;
+  logic [CheriExcWidth-1:0] cheri_exceptions_instr;
+  logic                     instr_upper_exc;
 
   // CSR control
   logic        csr_access;
@@ -459,6 +461,9 @@ module ibex_core import ibex_pkg::*; #(
     .instr_rdata_i     (instr_rdata_i),
     .instr_bus_err_i   (instr_err_i),
     .instr_intg_err_o  (instr_intg_err),
+
+    .instr_cheri_exc_i (cheri_exceptions_instr),
+    .instr_upper_exc_i (instr_upper_exc),
 
     .ic_tag_req_o      (ic_tag_req_o),
     .ic_tag_write_o    (ic_tag_write_o),
@@ -1010,6 +1015,7 @@ module ibex_core import ibex_pkg::*; #(
 
   ibex_cheri_memchecker #(
     .DataMem      (1'b1),
+    .StableOut    (1'b0),
     .CheriCapWidth(CheriCapWidth)
   ) cheri_data_memchecker_i (
     .clk_i (clk_i),
@@ -1023,7 +1029,28 @@ module ibex_core import ibex_pkg::*; #(
     .data_type_i    (lsu_type),
     .data_be_i      (data_be_o),
     .data_cap_i     (lsu_wcap),
-    .cheri_mem_exc_o(cheri_exceptions_lsu)
+    .cheri_mem_exc_o(cheri_exceptions_lsu),
+    .instr_upper_exc_o() // unused for data checker
+  );
+
+  ibex_cheri_memchecker #(
+    .DataMem      (1'b0),
+    .StableOut    (1'b1),
+    .CheriCapWidth(CheriCapWidth)
+  ) cheri_instr_memchecker_i (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+
+    .auth_cap_i     (pcc_if),
+    .data_req_i     (instr_req_o),
+    .data_gnt_i     (instr_gnt_i),
+    .data_addr_i    (instr_addr_o),
+    .data_we_i      (1'b0),
+    .data_type_i    (2'bX),  // unused for instruction checker
+    .data_be_i      (4'bX),  // unused for instruction checker
+    .data_cap_i     (1'b0), // no capability accesses via instruction interface
+    .cheri_mem_exc_o(cheri_exceptions_instr),
+    .instr_upper_exc_o(instr_upper_exc)
   );
 
   ///////////////////////
