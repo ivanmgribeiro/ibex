@@ -1,6 +1,6 @@
 module ibex_cheri_memchecker #(
     parameter bit DataMem = 1'b1,
-    parameter bit StableOut = 1'b1;
+    parameter bit StableOut = 1'b1,
     parameter int unsigned CheriCapWidth = 91
 ) (
     input logic clk_i,
@@ -12,6 +12,7 @@ module ibex_cheri_memchecker #(
     // data access information
     input logic        data_req_i,
     input logic        data_gnt_i,
+    input logic        data_rvalid_i,
     input logic [31:0] data_addr_i,
     input logic        data_we_i,
     input logic [1:0]  data_type_i,
@@ -89,12 +90,10 @@ module ibex_cheri_memchecker #(
       cheri_mem_exc_q <= '0;
     end else if (data_req_i & data_gnt_i) begin
       cheri_mem_exc_q <= cheri_mem_exc_d;
-    end else if (~StableOut) begin
-      cheri_mem_exc_q <= '0;
     end
   end
 
-  assign cheri_mem_exc_o = cheri_mem_exc_q;
+  assign cheri_mem_exc_o = StableOut | data_rvalid_i ? cheri_mem_exc_q : 0;
 
   // CHERI module instantiation
   module_wrap64_isValidCap auth_cap_isValidCap (

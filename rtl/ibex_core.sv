@@ -1025,6 +1025,7 @@ module ibex_core import ibex_pkg::*; #(
     .auth_cap_i     (lsu_mem_auth_cap),
     .data_req_i     (data_req_out),
     .data_gnt_i     (data_gnt_i),
+    .data_rvalid_i  (data_rvalid_i),
     .data_addr_i    (data_addr_o),
     .data_we_i      (data_we_o),
     .data_type_i    (lsu_type),
@@ -1045,6 +1046,7 @@ module ibex_core import ibex_pkg::*; #(
     .auth_cap_i     (pcc_if),
     .data_req_i     (instr_req_o),
     .data_gnt_i     (instr_gnt_i),
+    .data_rvalid_i  (instr_rvalid_i),
     .data_addr_i    (instr_addr_o),
     .data_we_i      (1'b0),
     .data_type_i    (2'bX),  // unused for instruction checker
