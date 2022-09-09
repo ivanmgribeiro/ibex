@@ -116,10 +116,12 @@ module ibex_if_stage import ibex_pkg::*; #(
   // CSRs
   input  logic [31:0]                 csr_mepc_i,               // PC to restore after handling
                                                                 // the interrupt/exception
+  input  logic [CheriCapWidth-1:0]    scr_mepcc_i,
   input  logic [31:0]                 csr_depc_i,               // PC to restore after handling
                                                                 // the debug request
   input  logic [31:0]                 csr_mtvec_i,              // base PC to jump to on exception
   output logic                        csr_mtvec_init_o,         // tell CS regfile to init mtvec
+  input  logic [CheriCapWidth-1:0]    scr_mtcc_i,
 
   // pipeline stall
   input  logic                        id_in_ready_i,            // ID stage is ready for new instr
@@ -165,7 +167,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              if_instr_err_plus2;
 
   logic       [31:0] exc_pc;
-  logic [CheriCapWidth:0] exc_pcc;
+  logic [CheriCapWidth-1:0] exc_pcc;
 
   logic              if_id_pipe_reg_we; // IF-ID pipeline reg write enable
 
@@ -204,11 +206,26 @@ module ibex_if_stage import ibex_pkg::*; #(
     end
 
     unique case (exc_pc_mux_i)
-      EXC_PC_EXC:     exc_pc = { csr_mtvec_i[31:8], 8'h00                };
-      EXC_PC_IRQ:     exc_pc = { csr_mtvec_i[31:8], 1'b0, irq_vec, 2'b00 };
-      EXC_PC_DBD:     exc_pc = DmHaltAddr;
-      EXC_PC_DBG_EXC: exc_pc = DmExceptionAddr;
-      default:        exc_pc = { csr_mtvec_i[31:8], 8'h00                };
+      EXC_PC_EXC: begin
+        exc_pc  = '0; // PC does not matter since we are setting PCC to MTCC
+        exc_pcc = scr_mtcc_i;
+      end
+      EXC_PC_IRQ: begin
+        exc_pc  = { csr_mtvec_i[31:8], 1'b0, irq_vec, 2'b00 };
+        exc_pcc = scr_mtcc_i;
+      end
+      EXC_PC_DBD: begin
+        exc_pc  = DmHaltAddr;
+        exc_pcc = pcc_q;
+      end
+      EXC_PC_DBG_EXC: begin
+        exc_pc  = DmExceptionAddr;
+        exc_pcc = pcc_q;
+      end
+      default: begin
+        exc_pc  = '0;
+        exc_pcc = scr_mtcc_i;
+      end
     endcase
   end
 
@@ -220,17 +237,38 @@ module ibex_if_stage import ibex_pkg::*; #(
   // fetch address selection mux
   always_comb begin : fetch_addr_mux
     unique case (pc_mux_internal)
-      // TODO TestRIG does not support having an offset of 80 in the reset PC
-      PC_BOOT: fetch_addr_n = boot_addr_i;
-      PC_JUMP: fetch_addr_n = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
-      PC_EXC:  fetch_addr_n = exc_pc;                       // set PC to exception handler
-      PC_ERET: fetch_addr_n = csr_mepc_i;                   // restore PC when returning from EXC
-      PC_DRET: fetch_addr_n = csr_depc_i;
+      PC_BOOT: begin
+        // TODO TestRIG does not support having an offset of 80 in the reset PC
+        fetch_addr_n      = boot_addr_i;
+        pcc_setOffset_cap = CheriAlmightyCap;
+      end
+      PC_JUMP: begin
+        fetch_addr_n      = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
+        pcc_setOffset_cap = branch_is_cap_i ? branch_target_ex_i : pcc_q;
+      end
+      PC_EXC: begin
+        fetch_addr_n      = exc_pc;                       // set PC to exception handler
+        pcc_setOffset_cap = exc_pcc;
+      end
+      PC_ERET: begin
+        fetch_addr_n = csr_mepc_i;                   // restore PC when returning from EXC
+        pcc_setOffset_cap = scr_mepcc_i;
+      end
+      PC_DRET: begin
+        fetch_addr_n = csr_depc_i;
+        pcc_setOffset_cap = pcc_q;
+      end
       // Without branch predictor will never get pc_mux_internal == PC_BP. We still handle no branch
       // predictor case here to ensure redundant mux logic isn't synthesised.
-      // TODO TestRIG does not support having an offset of 80 in the reset PC
-      PC_BP:   fetch_addr_n = BranchPredictor ? predict_branch_pc : boot_addr_i;
-      default: fetch_addr_n = boot_addr_i;
+      PC_BP: begin
+        // TODO TestRIG does not support having an offset of 80 in the reset PC
+        fetch_addr_n = BranchPredictor ? predict_branch_pc : boot_addr_i;
+        pcc_setOffset_cap = pcc_q;
+      end
+      default: begin
+        fetch_addr_n = boot_addr_i;
+        pcc_setOffset_cap = pcc_q;
+      end
     endcase
   end
 
@@ -524,7 +562,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         pcc_id_o                 <= CheriNullCap;
         pcc_q                    <= CheriAlmightyCap;
       end else begin
-        pcc_q <= pc_set_i & (branch_is_cap_i | pc_mux_internal == PC_BOOT) ? branch_target_ex_i : pcc_if_o;
+        pcc_q <= pcc_if_o;
         if (if_id_pipe_reg_we) begin
           instr_rdata_id_o         <= instr_out;
           // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -541,7 +579,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     end
   end else begin : g_instr_rdata_nr
     always_ff @(posedge clk_i) begin
-      pcc_q <= pc_set_i & branch_is_cap_i & pc_mux_internal == PC_JUMP ? branch_target_ex_i : pcc_if_o;
+      pcc_q <= pcc_if_o;
       if (if_id_pipe_reg_we) begin
         instr_rdata_id_o         <= instr_out;
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -707,10 +745,10 @@ module ibex_if_stage import ibex_pkg::*; #(
 
 
   // CHERI module instantiations
-  logic [CheriCapWidth-1:0] pcc_setOffset_cap;
+  logic [CheriCapWidth-1:0] pcc_setOffset_cap, pcc_setOffset_cap_int;
   logic [31:0] cheri_target_offset;
-  assign pcc_setOffset_cap = pc_set_i & pc_mux_internal == PC_BOOT ? CheriAlmightyCap : pcc_q;
-  module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap, if_instr_addr, {unused_pcc_setOffset_exact, pcc_if_o});
+  assign pcc_setOffset_cap_int = pc_set_i ? pcc_setOffset_cap : pcc_q; // update PCC on jumps, otherwise preserve the old one
+  module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap_int, if_instr_addr, {unused_pcc_setOffset_exact, pcc_if_o});
   module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
 
   ////////////////

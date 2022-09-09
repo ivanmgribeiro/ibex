@@ -366,6 +366,7 @@ module ibex_core import ibex_pkg::*; #(
   irqs_t       irqs;
   logic        csr_mstatus_mie;
   logic [31:0] csr_mepc, csr_depc;
+  logic [CheriCapWidth-1:0] scr_mepcc;
 
   // PMP signals
   logic [33:0]  csr_pmp_addr [PMPNumRegions];
@@ -386,6 +387,7 @@ module ibex_core import ibex_pkg::*; #(
   logic        csr_mstatus_tw;
   priv_lvl_e   priv_mode_id;
   priv_lvl_e   priv_mode_lsu;
+  logic [CheriCapWidth-1:0] scr_mtcc;
 
   // debug mode and dcsr configuration
   logic        debug_mode;
@@ -523,8 +525,10 @@ module ibex_core import ibex_pkg::*; #(
 
     // CSRs
     .csr_mepc_i      (csr_mepc),  // exception return address
+    .scr_mepcc_i     (scr_mepcc), // exception return PCC
     .csr_depc_i      (csr_depc),  // debug return address
     .csr_mtvec_i     (csr_mtvec),  // trap-vector base address
+    .scr_mtcc_i      (scr_mtcc),  // exception PCC
     .csr_mtvec_init_o(csr_mtvec_init),
 
     // pipeline stalls
@@ -1170,6 +1174,7 @@ module ibex_core import ibex_pkg::*; #(
     // mtvec
     .csr_mtvec_o     (csr_mtvec),
     .csr_mtvec_init_i(csr_mtvec_init),
+    .scr_mtcc_o      (scr_mtcc),
     .boot_addr_i     (boot_addr_i),
 
     // Interface to CSRs     ( SRAM like                    )
@@ -1202,6 +1207,7 @@ module ibex_core import ibex_pkg::*; #(
     .csr_mstatus_mie_o(csr_mstatus_mie),
     .csr_mstatus_tw_o (csr_mstatus_tw),
     .csr_mepc_o       (csr_mepc),
+    .scr_mepcc_o      (scr_mepcc),
     .csr_mtval_o      (crash_dump_mtval),
 
     // PMP

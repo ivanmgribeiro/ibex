@@ -47,6 +47,7 @@ module ibex_cs_registers #(
   output logic [31:0]          csr_mtvec_o,
   input  logic                 csr_mtvec_init_i,
   input  logic [31:0]          boot_addr_i,
+  output logic [CheriCapWidth-1:0] scr_mtcc_o,
 
   // Interface to registers (SRAM like)
   input  logic                 csr_access_i,
@@ -79,6 +80,7 @@ module ibex_cs_registers #(
   output logic                 csr_mstatus_mie_o,
   output logic [31:0]          csr_mepc_o,
   output logic [31:0]          csr_mtval_o,
+  output logic [CheriCapWidth-1:0] scr_mepcc_o,
 
   // PMP
   output ibex_pkg::pmp_cfg_t     csr_pmp_cfg_o  [PMPNumRegions],
@@ -372,6 +374,8 @@ module ibex_cs_registers #(
 
     // DDC should always be accessible
     scr_ddc_o     = scr_ddc_q;
+    scr_mepcc_o   = scr_mepcc_q;
+    scr_mtcc_o    = scr_mtcc_q;
 
     unique case (csr_addr_i)
       // mvendorid: encoding of manufacturer/provider
