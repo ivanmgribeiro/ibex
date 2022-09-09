@@ -38,6 +38,7 @@ module ibex_cheri_memchecker #(
   logic [30:0] auth_cap_getPerms_o;
 
   logic [CheriExcWidth-1:0] cheri_mem_exc_q, cheri_mem_exc_d;
+  logic                     instr_upper_exc_q, instr_upper_exc_d;
 
   // get data size from type to use in bounds checking, and then zero-extend
   // it to the correct size (33 bits since capability "top" is 33 bits)
@@ -84,18 +85,21 @@ module ibex_cheri_memchecker #(
                                                      | ({1'b0, data_addr_actual} + data_size_ext > auth_cap_getTop_o);
   // don't bother checking if it is below base (if it is, then there will be
   // a length violation in the lower word anyway
-  assign instr_upper_exc_o                       = DataMem ? 0 : {1'b0, data_addr_actual_upper} > auth_cap_getTop_o;
+  assign instr_upper_exc_d                         = DataMem ? 0 : {1'b0, data_addr_actual_upper} > auth_cap_getTop_o;
 
   // only generate exceptions when requests are made
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-      cheri_mem_exc_q <= '0;
+      cheri_mem_exc_q   <= '0;
+      instr_upper_exc_q <= '0;
     end else if (data_req_i & data_gnt_i) begin
-      cheri_mem_exc_q <= cheri_mem_exc_d;
+      cheri_mem_exc_q   <= cheri_mem_exc_d;
+      instr_upper_exc_q <= instr_upper_exc_d;
     end
   end
 
-  assign cheri_mem_exc_o = StableOut | data_rvalid_i ? cheri_mem_exc_q : 0;
+  assign cheri_mem_exc_o   = StableOut | data_rvalid_i ? cheri_mem_exc_q   : 0;
+  assign instr_upper_exc_o = StableOut | data_rvalid_i ? instr_upper_exc_q : 0;
 
   assign data_we_o = data_we_i & ~|cheri_mem_exc_d;
 
