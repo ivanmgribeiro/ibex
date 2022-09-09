@@ -717,8 +717,14 @@ module ibex_cheri_alu #(
                   alu_operand_b_o = 2; // The minimum instruction size in bytes
                   alu_operator_o = ALU_ADD;
 
+                  // set the lowest bit of the address to 0
                   a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
-                  result_o = a_setAddr_o[CheriCapWidth-1:0];
+
+                  // unseal the capability
+                  a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
+                  a_setKind_i = 7'h0F;
+
+                  result_o = a_setKind_o;
                 end else begin
                   alu_operand_a_o = a_getAddr_o;
                   alu_operand_b_o = 4;
