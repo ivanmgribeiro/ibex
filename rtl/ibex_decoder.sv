@@ -754,7 +754,6 @@ module ibex_decoder #(
                 end
               end
               C_STORE: begin
-                cheri_en_o         = 1'b1;
                 rf_ren_a_o         = 1'b1;
                 rf_ren_b_o         = 1'b1;
                 data_req_o         = 1'b1;
@@ -1484,6 +1483,9 @@ module ibex_decoder #(
                 end
               end
               C_STORE: begin
+                // these stores don't use the CHERI ALU, but do need to use
+                // the integer ALU to compute addresses
+                cheri_en_o         = 1'b0;
                 alu_op_a_mux_sel_o = OP_A_REG_A;
                 alu_op_b_mux_sel_o = OP_B_IMM;
                 imm_b_mux_sel_o    = IMM_B_ZERO;
@@ -1491,6 +1493,9 @@ module ibex_decoder #(
               end
 
               C_LOAD: begin
+                // these loads don't use the CHERI ALU, but do need to use
+                // the integer ALU to compute addresses
+                cheri_en_o         = 1'b0;
                 alu_op_a_mux_sel_o = OP_A_REG_A;
                 alu_op_b_mux_sel_o = OP_B_IMM;
                 imm_b_mux_sel_o    = IMM_B_ZERO;
