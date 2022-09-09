@@ -214,6 +214,10 @@ module ibex_core import ibex_pkg::*; #(
   logic        lsu_load_misalign_err;
   logic        lsu_store_misalign_err;
 
+  // intermediate internal signal for data_we; this is overwritten by the
+  // CHERI memchecker when a store is disallowed
+  logic        data_we_int;
+
   // LSU signals
   logic        lsu_addr_incr_req;
   logic [31:0] lsu_addr_last;
@@ -846,7 +850,7 @@ module ibex_core import ibex_pkg::*; #(
     .data_cheri_err_i(cheri_exceptions_lsu),
 
     .data_addr_o      (data_addr_o),
-    .data_we_o        (data_we_o),
+    .data_we_o        (data_we_int),
     .data_be_o        (data_be_o),
     .data_wdata_o     (data_wdata_o),
     .data_rdata_i     (data_rdata_i),
@@ -1027,10 +1031,11 @@ module ibex_core import ibex_pkg::*; #(
     .data_gnt_i     (data_gnt_i),
     .data_rvalid_i  (data_rvalid_i),
     .data_addr_i    (data_addr_o),
-    .data_we_i      (data_we_o),
+    .data_we_i      (data_we_int),
     .data_type_i    (lsu_type),
     .data_be_i      (data_be_o),
     .data_cap_i     (lsu_wcap),
+    .data_we_o      (data_we_o),
     .cheri_mem_exc_o(cheri_exceptions_lsu),
     .instr_upper_exc_o() // unused for data checker
   );
@@ -1052,6 +1057,7 @@ module ibex_core import ibex_pkg::*; #(
     .data_type_i    (2'bX),  // unused for instruction checker
     .data_be_i      (4'bX),  // unused for instruction checker
     .data_cap_i     (1'b0), // no capability accesses via instruction interface
+    .data_we_o      (),      // unused for instruction checker
     .cheri_mem_exc_o(cheri_exceptions_instr),
     .instr_upper_exc_o(instr_upper_exc)
   );

@@ -19,6 +19,8 @@ module ibex_cheri_memchecker #(
     input logic [3:0]  data_be_i,
     input logic        data_cap_i,
 
+    // new output signal to prevent CHERI-disallowed writes from writing memory
+    output logic       data_we_o,
     // exceptions that have been caused
     output logic [ibex_pkg::CheriExcWidth-1:0] cheri_mem_exc_o,
     // whether there was a length exception caused by fetching the second half
@@ -94,6 +96,8 @@ module ibex_cheri_memchecker #(
   end
 
   assign cheri_mem_exc_o = StableOut | data_rvalid_i ? cheri_mem_exc_q : 0;
+
+  assign data_we_o = data_we_i & ~|cheri_mem_exc_d;
 
   // CHERI module instantiation
   module_wrap64_isValidCap auth_cap_isValidCap (
