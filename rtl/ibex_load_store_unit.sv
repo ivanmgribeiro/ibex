@@ -68,6 +68,8 @@ module ibex_load_store_unit #(
   output logic         load_err_o,
   output logic         store_err_o,
   output logic         load_intg_err_o,
+  output logic         load_misalign_err_o,
+  output logic         store_misalign_err_o,
 
   output logic         busy_o,
 
@@ -106,6 +108,7 @@ module ibex_load_store_unit #(
                                                           // part of a misaligned access
   logic         pmp_err_q, pmp_err_d;
   logic         lsu_err_q, lsu_err_d;
+  logic         lsu_misalign_err_q, lsu_misalign_err_d;
   logic         data_intg_err, data_or_pmp_err;
 
   logic [64:0]  wdata_mem_cap;
@@ -395,6 +398,8 @@ module ibex_load_store_unit #(
     handle_misaligned_d = handle_misaligned_q;
     pmp_err_d           = pmp_err_q;
     lsu_err_d           = lsu_err_q;
+    // don't preserve the old value; the signal should only be high for 1 cycle
+    lsu_misalign_err_d  = 1'b0;
 
     addr_update         = 1'b0;
     ctrl_update         = 1'b0;
@@ -409,24 +414,32 @@ module ibex_load_store_unit #(
       IDLE: begin
         pmp_err_d = 1'b0;
         if (lsu_req_i) begin
-          data_req_o   = 1'b1;
-          pmp_err_d    = data_pmp_err_i;
-          lsu_err_d    = 1'b0;
-          perf_load_o  = ~lsu_we_i;
-          perf_store_o = lsu_we_i;
-
-          if (data_gnt_i) begin
-            ctrl_update         = 1'b1;
-            addr_update         = 1'b1;
-            lsu_wupper_d        = lsu_wcap_i;
-            handle_misaligned_d = split_misaligned_access;
-            ls_fsm_ns           = lsu_wcap_i ? WAIT_RVALID_CAP
-                                : split_misaligned_access ? WAIT_RVALID_MIS
-                                : IDLE;
+          // if this is an unaligned capability access, cause an exception and
+          // do not make an access
+          if (lsu_wcap_i & |data_addr[2:0]) begin
+            lsu_err_d          = 1'b1;
+            lsu_misalign_err_d = 1'b1;
+            ctrl_update        = 1'b1;
           end else begin
-            ls_fsm_ns           = lsu_wcap_i ? WAIT_GNT_CAP
-                                : split_misaligned_access ? WAIT_GNT_MIS
-                                : WAIT_GNT;
+            data_req_o   = 1'b1;
+            pmp_err_d    = data_pmp_err_i;
+            lsu_err_d    = 1'b0;
+            perf_load_o  = ~lsu_we_i;
+            perf_store_o = lsu_we_i;
+
+            if (data_gnt_i) begin
+              ctrl_update         = 1'b1;
+              addr_update         = 1'b1;
+              lsu_wupper_d        = lsu_wcap_i;
+              handle_misaligned_d = split_misaligned_access;
+              ls_fsm_ns           = lsu_wcap_i ? WAIT_RVALID_CAP
+                                  : split_misaligned_access ? WAIT_RVALID_MIS
+                                  : IDLE;
+            end else begin
+              ls_fsm_ns           = lsu_wcap_i ? WAIT_GNT_CAP
+                                  : split_misaligned_access ? WAIT_GNT_MIS
+                                  : WAIT_GNT;
+            end
           end
         end
       end
@@ -589,12 +602,14 @@ module ibex_load_store_unit #(
       lsu_wupper_q        <= '0;
       pmp_err_q           <= '0;
       lsu_err_q           <= '0;
+      lsu_misalign_err_q  <= '0;
     end else begin
       ls_fsm_cs           <= ls_fsm_ns;
       handle_misaligned_q <= handle_misaligned_d;
       lsu_wupper_q        <= lsu_wupper_d;
       pmp_err_q           <= pmp_err_d;
       lsu_err_q           <= lsu_err_d;
+      lsu_misalign_err_q  <= lsu_misalign_err_d;
     end
   end
 
@@ -637,8 +652,10 @@ module ibex_load_store_unit #(
   assign addr_last_o   = addr_last_q;
 
   // Signal a load or store error depending on the transaction type outstanding
-  assign load_err_o      = data_or_pmp_err & ~data_we_q & lsu_resp_valid_o;
-  assign store_err_o     = data_or_pmp_err &  data_we_q & lsu_resp_valid_o;
+  assign load_err_o       = data_or_pmp_err & ~data_we_q & lsu_resp_valid_o;
+  assign store_err_o      = data_or_pmp_err &  data_we_q & lsu_resp_valid_o;
+  assign load_misalign_err_o  = lsu_misalign_err_q & ~data_we_q;
+  assign store_misalign_err_o = lsu_misalign_err_q &  data_we_q;
   // Integrity errors are their own category for timing reasons. load_err_o is factored directly
   // into data_req_o to enable synchronous exception on load errors without performance loss (An
   // upcoming load cannot request until the current load has seen its response, so the earliest

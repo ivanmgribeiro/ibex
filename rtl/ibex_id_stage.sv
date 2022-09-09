@@ -111,6 +111,7 @@ module ibex_id_stage #(
   // CHERI exceptions
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_a_ex_i,
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_b_ex_i,
+  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_lsu_i,
 
   // CSR
   output logic                      csr_access_o,
@@ -144,6 +145,7 @@ module ibex_id_stage #(
   output logic [CheriCapWidth-1:0]  lsu_wdata_cap_o,
   output logic [31:0]               lsu_wdata_int_o,
   output logic                      lsu_wcap_o,
+  output logic [CheriCapWidth-1:0]  lsu_mem_auth_cap_o, // Authorizing capability for memory accesses
 
   input  logic                      lsu_req_done_i, // Data req to LSU is complete and
                                                     // instruction can move to writeback
@@ -163,6 +165,8 @@ module ibex_id_stage #(
   input  logic                      lsu_load_err_i,
   input  logic                      lsu_store_err_i,
   input  logic                      lsu_load_intg_err_i,
+  input  logic                      lsu_load_misalign_err_i,
+  input  logic                      lsu_store_misalign_err_i,
 
   // Debug Signal
   output logic                      debug_mode_o,
@@ -312,6 +316,8 @@ module ibex_id_stage #(
   c_imm_b_sel_e cheri_imm_b_mux_sel;
   logic [31:0] cheri_imm_b;
 
+  logic mem_ddc_relative;
+
   // Multiplier Control
   logic        mult_en_id, mult_en_dec; // use integer multiplier
   logic        div_en_id, div_en_dec;   // use integer division or reminder
@@ -341,6 +347,9 @@ module ibex_id_stage #(
   assign alu_op_a_mux_sel = lsu_addr_incr_req_i ? OP_A_FWD        : alu_op_a_mux_sel_dec;
   assign alu_op_b_mux_sel = lsu_addr_incr_req_i ? OP_B_IMM        : alu_op_b_mux_sel_dec;
   assign imm_b_mux_sel    = lsu_addr_incr_req_i ? IMM_B_INCR_ADDR : imm_b_mux_sel_dec;
+
+  // Mux capability that provides capability for memory accesses
+  assign lsu_mem_auth_cap_o = mem_ddc_relative ? scr_ddc_i : rf_rdata_a_cap_fwd;
 
   ///////////////////
   // Operand MUXES //
@@ -625,7 +634,7 @@ module ibex_id_stage #(
     .data_sign_extension_o(lsu_sign_ext),
     .mem_cap_access_o     (lsu_wcap),
 
-    .mem_ddc_relative_o(),
+    .mem_ddc_relative_o(mem_ddc_relative),
 
     // jump/branches
     .jump_in_dec_o  (jump_in_dec),
@@ -720,6 +729,8 @@ module ibex_id_stage #(
     .load_err_i     (lsu_load_err_i),
     .load_intg_err_i(lsu_load_intg_err_i),
     .store_err_i    (lsu_store_err_i),
+    .load_misalign_err_i (lsu_load_misalign_err_i),
+    .store_misalign_err_i(lsu_store_misalign_err_i),
     .wb_exception_o (wb_exception),
     .id_exception_o (id_exception),
 
@@ -727,6 +738,7 @@ module ibex_id_stage #(
     .cheri_en_i             (cheri_en_o),
     .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
     .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
+    .cheri_exceptions_lsu_i (cheri_exceptions_lsu_i),
 
     // jump/branch control
     .branch_set_i     (branch_set),
@@ -1150,13 +1162,22 @@ module ibex_id_stage #(
                                (outstanding_memory_access | stall_ld_hz);
   end else begin : gen_no_stall_mem
 
-    assign multicycle_done = lsu_req_dec ? lsu_resp_valid_i : ex_valid_i;
+    // LSU requests that cause misaligned errors or CHERI exceptions will not
+    // receive responses, so set the "done" signal when we receive the error
+    assign multicycle_done = ~lsu_req_dec ? ex_valid_i
+                                          : lsu_resp_valid_i |
+                                            lsu_load_misalign_err_i |
+                                            lsu_store_misalign_err_i |
+                                            |cheri_exceptions_lsu_i;
 
     assign data_req_allowed = instr_first_cycle;
 
     // Without Writeback Stage always stall the first cycle of a load/store.
-    // Then stall until it is complete
-    assign stall_mem = instr_valid_i & (lsu_req_dec & (~lsu_resp_valid_i | instr_first_cycle));
+    // Then stall until it is complete or a CHERI LSU exception is thrown
+    assign stall_mem = instr_valid_i
+                     & lsu_req_dec
+                     & ~(|cheri_exceptions_lsu_i | lsu_load_misalign_err_i | lsu_store_misalign_err_i)
+                     & (~lsu_resp_valid_i | instr_first_cycle);
 
     // No load hazards without Writeback Stage
     assign stall_ld_hz   = 1'b0;

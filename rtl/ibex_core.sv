@@ -211,6 +211,8 @@ module ibex_core import ibex_pkg::*; #(
   logic        lsu_load_err;
   logic        lsu_store_err;
   logic        lsu_load_intg_err;
+  logic        lsu_load_misalign_err;
+  logic        lsu_store_misalign_err;
 
   // LSU signals
   logic        lsu_addr_incr_req;
@@ -300,6 +302,7 @@ module ibex_core import ibex_pkg::*; #(
   // CHERI exceptions
   logic [CheriExcWidth-1:0] cheri_exceptions_a_ex;
   logic [CheriExcWidth-1:0] cheri_exceptions_b_ex;
+  logic [CheriExcWidth-1:0] cheri_exceptions_lsu;
 
   // CSR control
   logic        csr_access;
@@ -332,6 +335,7 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriCapWidth-1:0] lsu_wdata_cap;
   logic                     lsu_wcap;
   logic                     lsu_req_done;
+  logic [CheriCapWidth-1:0] lsu_mem_auth_cap;
 
   // stall control
   logic        id_in_ready;
@@ -644,6 +648,7 @@ module ibex_core import ibex_pkg::*; #(
     // CHERI exceptions
     .cheri_exceptions_a_ex_i (cheri_exceptions_a_ex),
     .cheri_exceptions_b_ex_i (cheri_exceptions_b_ex),
+    .cheri_exceptions_lsu_i  (cheri_exceptions_lsu),
 
     // CSR ID/EX
     .csr_access_o         (csr_access),
@@ -678,6 +683,7 @@ module ibex_core import ibex_pkg::*; #(
     .lsu_wdata_cap_o(lsu_wdata_cap),  // to load store unit
     .lsu_wcap_o     (lsu_wcap), // to load store unit
     .lsu_req_done_i (lsu_req_done),  // from load store unit
+    .lsu_mem_auth_cap_o(lsu_mem_auth_cap), // to CHERI checker
 
     .lsu_addr_incr_req_i(lsu_addr_incr_req),
     .lsu_addr_last_i    (lsu_addr_last),
@@ -685,6 +691,8 @@ module ibex_core import ibex_pkg::*; #(
     .lsu_load_err_i     (lsu_load_err),
     .lsu_load_intg_err_i(lsu_load_intg_err),
     .lsu_store_err_i    (lsu_store_err),
+    .lsu_load_misalign_err_i (lsu_load_misalign_err),
+    .lsu_store_misalign_err_i(lsu_store_misalign_err),
 
     // Interrupt Signals
     .csr_mstatus_mie_i(csr_mstatus_mie),
@@ -818,7 +826,7 @@ module ibex_core import ibex_pkg::*; #(
   /////////////////////
 
   assign data_req_o   = data_req_out & ~pmp_req_err[PMP_D];
-  assign lsu_resp_err = lsu_load_err | lsu_store_err;
+  assign lsu_resp_err = lsu_load_err | lsu_store_err | lsu_load_misalign_err | lsu_store_misalign_err;
 
   ibex_load_store_unit #(
     .MemECC(MemECC),
@@ -867,6 +875,8 @@ module ibex_core import ibex_pkg::*; #(
     .load_err_o     (lsu_load_err),
     .store_err_o    (lsu_store_err),
     .load_intg_err_o(lsu_load_intg_err),
+    .load_misalign_err_o (lsu_load_misalign_err),
+    .store_misalign_err_o(lsu_store_misalign_err),
 
     .busy_o(lsu_busy),
 
@@ -996,6 +1006,28 @@ module ibex_core import ibex_pkg::*; #(
     module_wrap64_getAddr      rf_rdata_a_getAddr       (rf_rdata_a_cap, rf_rdata_a_int);
     module_wrap64_getAddr      rf_rdata_b_getAddr       (rf_rdata_b_cap, rf_rdata_b_int);
   end
+
+  ////////////////////////
+  // CHERI mem checkers //
+  ////////////////////////
+
+  ibex_cheri_memchecker #(
+    .DataMem      (1'b1),
+    .CheriCapWidth(CheriCapWidth)
+  ) cheri_data_memchecker_i (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+
+    .auth_cap_i     (lsu_mem_auth_cap),
+    .data_req_i     (data_req_out),
+    .data_gnt_i     (data_gnt_i),
+    .data_addr_i    (data_addr_o),
+    .data_we_i      (data_we_o),
+    .data_type_i    (lsu_type),
+    .data_be_i      (data_be_o),
+    .data_cap_i     (lsu_wcap),
+    .cheri_mem_exc_o(cheri_exceptions_lsu)
+  );
 
   ///////////////////////
   // Crash dump output //

@@ -60,6 +60,8 @@ module ibex_controller #(
   input  logic                  load_err_i,
   input  logic                  load_intg_err_i,
   input  logic                  store_err_i,
+  input  logic                  load_misalign_err_i,
+  input  logic                  store_misalign_err_i,
   output logic                  wb_exception_o,          // Instruction in WB taking an exception
   output logic                  id_exception_o,          // Instruction in ID taking an exception
 
@@ -67,7 +69,7 @@ module ibex_controller #(
   input  logic                               cheri_en_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_ex_i,
-  // TODO will need memory exceptions as well
+  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_lsu_i,
 
   // jump/branch signals
   input  logic                  branch_set_i,            // branch set signal (branch definitely
@@ -123,6 +125,9 @@ module ibex_controller #(
   logic debug_mode_q, debug_mode_d;
   logic load_err_q, load_err_d;
   logic store_err_q, store_err_d;
+  logic load_misalign_err_q, load_misalign_err_d;
+  logic store_misalign_err_q, store_misalign_err_d;
+  logic cheri_lsu_err_q, cheri_lsu_err_d;
   logic exc_req_q, exc_req_d;
   logic illegal_insn_q, illegal_insn_d;
 
@@ -134,6 +139,9 @@ module ibex_controller #(
   logic ebrk_insn_prio;
   logic store_err_prio;
   logic load_err_prio;
+  logic load_misalign_err_prio;
+  logic store_misalign_err_prio;
+  logic cheri_lsu_err_prio;
 
   logic stall;
   logic halt_if;
@@ -190,6 +198,9 @@ module ibex_controller #(
 
   assign load_err_d  = load_err_i;
   assign store_err_d = store_err_i;
+  assign load_misalign_err_d = load_misalign_err_i;
+  assign store_misalign_err_d = store_misalign_err_i;
+  assign cheri_lsu_err_d = |cheri_exceptions_lsu_i;
 
   // Decoder doesn't take instr_valid into account, factor it in here.
   assign ecall_insn      = ecall_insn_i      & instr_valid_i;
@@ -222,7 +233,7 @@ module ibex_controller #(
                      (ctrl_fsm_cs != FLUSH);
 
   // LSU exception requests
-  assign exc_req_lsu = store_err_i | load_err_i;
+  assign exc_req_lsu = store_err_i | load_err_i | store_misalign_err_i | load_misalign_err_i | |cheri_exceptions_lsu_i;
 
   assign id_exception_o = exc_req_d;
 
@@ -252,14 +263,21 @@ module ibex_controller #(
       ebrk_insn_prio       = 0;
       store_err_prio       = 0;
       load_err_prio        = 0;
+      store_misalign_err_prio = 0;
+      load_misalign_err_prio  = 0;
+      cheri_lsu_err_prio      = 0;
 
       // Note that with the writeback stage store/load errors occur on the instruction in writeback,
       // all other exception/faults occur on the instruction in ID/EX. The faults from writeback
       // must take priority as that instruction is architecurally ordered before the one in ID/EX.
       if (store_err_q) begin
         store_err_prio = 1'b1;
+      end else if (store_misalign_err_q) begin
+        store_misalign_err_prio = 1'b1;
       end else if (load_err_q) begin
         load_err_prio  = 1'b1;
+      end else if (load_misalign_err_q) begin
+        load_misalign_err_prio = 1'b1;
       end else if (instr_fetch_err) begin
         instr_fetch_err_prio = 1'b1;
       end else if (illegal_insn_q) begin
@@ -268,11 +286,16 @@ module ibex_controller #(
         ecall_insn_prio = 1'b1;
       end else if (ebrk_insn) begin
         ebrk_insn_prio = 1'b1;
+      end else if (cheri_lsu_err_q) begin
+        cheri_lsu_err_prio = 1'b1;
       end
     end
 
     // Instruction in writeback is generating an exception so instruction in ID must not execute
-    assign wb_exception_o = load_err_q | store_err_q | load_err_i | store_err_i;
+    assign wb_exception_o = load_err_q | store_err_q | cheri_lsu_err_q
+                          | load_err_i | store_err_i | |cheri_exceptions_lsu_i
+                          | load_misalign_err_q | load_misalign_err_i
+                          | store_misalign_err_q | store_misalign_err_i;;
   end else begin : g_no_wb_exceptions
     always_comb begin
       instr_fetch_err_prio = 0;
@@ -281,6 +304,9 @@ module ibex_controller #(
       ebrk_insn_prio       = 0;
       store_err_prio       = 0;
       load_err_prio        = 0;
+      store_misalign_err_prio = 0;
+      load_misalign_err_prio  = 0;
+      cheri_lsu_err_prio      = 0;
 
       if (instr_fetch_err) begin
         instr_fetch_err_prio = 1'b1;
@@ -292,8 +318,14 @@ module ibex_controller #(
         ebrk_insn_prio = 1'b1;
       end else if (store_err_q) begin
         store_err_prio = 1'b1;
+      end else if (store_misalign_err_q) begin
+        store_misalign_err_prio = 1'b1;
       end else if (load_err_q) begin
         load_err_prio  = 1'b1;
+      end else if (load_misalign_err_q) begin
+        load_misalign_err_prio = 1'b1;
+      end else if (cheri_lsu_err_q) begin
+        cheri_lsu_err_prio = 1'b1;
       end
     end
     assign wb_exception_o = 1'b0;
@@ -305,7 +337,10 @@ module ibex_controller #(
                       ecall_insn_prio,
                       ebrk_insn_prio,
                       store_err_prio,
-                      load_err_prio}),
+                      store_misalign_err_prio,
+                      load_err_prio,
+                      load_misalign_err_prio,
+                      cheri_lsu_err_prio}),
              (ctrl_fsm_cs == FLUSH) & exc_req_q)
 
   ////////////////
@@ -726,7 +761,8 @@ module ibex_controller #(
 
         // exceptions: set exception PC, save PC and exception cause
         // exc_req_lsu is high for one clock cycle only (in DECODE)
-        if (exc_req_q || store_err_q || load_err_q) begin
+        if (exc_req_q || store_err_q || load_err_q || store_misalign_err_q ||
+            load_misalign_err_q || cheri_lsu_err_q) begin
           pc_set_o         = 1'b1;
           pc_mux_o         = PC_EXC;
           exc_pc_mux_o     = debug_mode_q ? EXC_PC_DBG_EXC : EXC_PC_EXC;
@@ -735,8 +771,8 @@ module ibex_controller #(
             // With the writeback stage present whether an instruction accessing memory will cause
             // an exception is only known when it is in writeback. So when taking such an exception
             // epc must come from writeback.
-            csr_save_id_o  = ~(store_err_q | load_err_q);
-            csr_save_wb_o  = store_err_q | load_err_q;
+            csr_save_id_o  = ~(store_err_q | load_err_q | cheri_lsu_err_q);
+            csr_save_wb_o  = ~csr_save_id_o;
           end else begin : g_no_writeback_mepc_save
             csr_save_id_o  = 1'b0;
           end
@@ -794,8 +830,20 @@ module ibex_controller #(
               exc_cause_o = ExcCauseStoreAccessFault;
               csr_mtval_o = lsu_addr_last_i;
             end
+            store_misalign_err_prio: begin
+              exc_cause_o = ExcCauseStoreAddrMisalign;
+              csr_mtval_o = lsu_addr_last_i;
+            end
             load_err_prio: begin
               exc_cause_o = ExcCauseLoadAccessFault;
+              csr_mtval_o = lsu_addr_last_i;
+            end
+            load_misalign_err_prio: begin
+              exc_cause_o = ExcCauseLoadAddrMisalign;
+              csr_mtval_o = lsu_addr_last_i;
+            end
+            cheri_lsu_err_prio: begin
+              exc_cause_o = ExcCauseCheri;
               csr_mtval_o = lsu_addr_last_i;
             end
             default: ;
@@ -882,6 +930,9 @@ module ibex_controller #(
       enter_debug_mode_prio_q <= 1'b0;
       load_err_q              <= 1'b0;
       store_err_q             <= 1'b0;
+      load_misalign_err_q     <= 1'b0;
+      store_misalign_err_q    <= 1'b0;
+      cheri_lsu_err_q         <= 1'b0;
       exc_req_q               <= 1'b0;
       illegal_insn_q          <= 1'b0;
     end else begin
@@ -892,6 +943,9 @@ module ibex_controller #(
       enter_debug_mode_prio_q <= enter_debug_mode_prio_d;
       load_err_q              <= load_err_d;
       store_err_q             <= store_err_d;
+      load_misalign_err_q     <= load_misalign_err_d;
+      store_misalign_err_q    <= store_misalign_err_d;
+      cheri_lsu_err_q         <= cheri_lsu_err_d;
       exc_req_q               <= exc_req_d;
       illegal_insn_q          <= illegal_insn_d;
     end
