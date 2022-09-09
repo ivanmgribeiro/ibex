@@ -761,6 +761,8 @@ module ibex_decoder #(
 
                 mem_ddc_relative_o = ~instr[10];
                 use_cap_base_o     = 1'b0;
+                // instr[11] should always be 0
+                // instr[9] indicates store quad - not allowed in RV32
                 if (instr[11] || instr[9]) begin
                   illegal_insn = 1'b1;
                 end
@@ -802,6 +804,11 @@ module ibex_decoder #(
                     mem_cap_access_o = 1'b1;
                   end
                 endcase
+
+                // quad-sized accesses are illegal
+                if (instr[24] == 1'b1) begin
+                  illegal_insn = 1'b1;
+                end
               end
               SOURCE_AND_DEST: begin
                 rf_we = 1'b1;
