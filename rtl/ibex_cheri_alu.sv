@@ -201,8 +201,8 @@ module ibex_cheri_alu #(
 
     // used for checking branch targets
     if (exc_only_i) begin
-      exceptions_a_o[LENGTH_VIOLATION] = btalu_result_i < a_getBase_o
-                                       | {1'b0, btalu_result_i} + 2 > a_getTop_o;
+      exceptions_a_o[LENGTH_VIOLATION] = {btalu_result_i[31:1], 1'b0} < a_getBase_o
+                                       | {1'b0, btalu_result_i[31:1], 1'b0} + 2 > a_getTop_o;
     end else begin
       case (base_opcode_i)
         THREE_OP: begin
