@@ -306,14 +306,11 @@ package ibex_pkg;
     GLOBAL_VIOLATION,
     LENGTH_VIOLATION,
     INEXACT_BOUNDS_VIOLATION,
-    SOFTWARE_DEFINED_VIOLATION,
-    MMU_PROHIBITS_STORE_VIOLATION,
-    CALL_TRAP,
-    RETURN_TRAP
+    SOFTWARE_DEFINED_VIOLATION
   } cheri_capability_exception_e;
 
   // TODO perhaps there is a better way of representing these
-  parameter int unsigned CheriExcWidth      = 22;
+  parameter int unsigned CheriExcWidth      = 19;
 
   parameter int unsigned CheriMaxOType      = 'hb;
 
