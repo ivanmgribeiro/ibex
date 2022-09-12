@@ -207,7 +207,9 @@ module ibex_if_stage import ibex_pkg::*; #(
 
     unique case (exc_pc_mux_i)
       EXC_PC_EXC: begin
-        exc_pc  = '0; // PC does not matter since we are setting PCC to MTCC
+        // PC is only set to MTVEC here for RVFI reporting; only PCC matters
+        // for control flow
+        exc_pc  = { csr_mtvec_i[31:2], 2'b00};
         exc_pcc = scr_mtcc_i;
       end
       EXC_PC_IRQ: begin
