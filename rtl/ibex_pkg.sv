@@ -322,6 +322,7 @@ package ibex_pkg;
   parameter int unsigned PermitSealIndex    = 7;
   parameter int unsigned PermitCInvokeIndex = 8;
   parameter int unsigned PermitUnsealIndex  = 9;
+  parameter int unsigned PermitAccessSysReg = 10;
 
   //////////////////////////////////
   // Control and status registers //

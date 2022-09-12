@@ -336,6 +336,8 @@ module ibex_id_stage #(
 
   // CSR control
   logic        csr_pipe_flush;
+  logic        cheri_check_asr;
+  logic        cheri_asr_exc;
 
   logic [31:0] alu_operand_a;
   logic [31:0] alu_operand_b;
@@ -610,6 +612,7 @@ module ibex_id_stage #(
     .cheri_threeop_opcode_o(cheri_threeop_opcode_o),
     .cheri_s_a_d_opcode_o  (cheri_s_a_d_opcode_o),
     .cheri_alu_exc_only_o  (cheri_alu_exc_only_o),
+    .cheri_check_asr_o     (cheri_check_asr),
 
     .cap_mode_i(),
 
@@ -668,6 +671,9 @@ module ibex_id_stage #(
       end
     end
   end
+
+  // Check CHERI AccessSystemRegisters
+  assign cheri_asr_exc = cheri_check_asr & ~pcc_getPerms_o[PermitAccessSysReg];
 
   ////////////////
   // Controller //
@@ -742,6 +748,7 @@ module ibex_id_stage #(
     .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
     .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
     .cheri_exceptions_lsu_i (cheri_exceptions_lsu_i),
+    .cheri_asr_exc_i        (cheri_asr_exc),
 
     // jump/branch control
     .branch_set_i     (branch_set),
@@ -805,7 +812,7 @@ module ibex_id_stage #(
   // asserting it for an illegal csr access would result in a flush that would need to deassert it).
   // The same applies to SCRs
   assign csr_op_en_o             = csr_access_o & instr_executing & instr_id_done_o;
-  assign scr_op_en_o             = scr_access_o & instr_executing & instr_id_done_o;
+  assign scr_op_en_o             = scr_access_o & instr_executing & instr_id_done_o & ~cheri_asr_exc;
 
   assign alu_operator_ex_o           = alu_operator;
   assign alu_operand_a_ex_o          = alu_operand_a;
