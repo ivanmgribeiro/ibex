@@ -748,9 +748,10 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   // CHERI module instantiations
   logic [CheriCapWidth-1:0] pcc_setOffset_cap, pcc_setOffset_cap_int;
-  logic [31:0] cheri_target_offset;
+  logic [31:0] pcc_newOffset, cheri_target_offset;
   assign pcc_setOffset_cap_int = pc_set_i ? pcc_setOffset_cap : pcc_q; // update PCC on jumps, otherwise preserve the old one
-  module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap_int, if_instr_addr, {unused_pcc_setOffset_exact, pcc_if_o});
+  assign pcc_newOffset = pc_set_i ? fetch_addr_n : if_instr_addr;
+  module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap_int, pcc_newOffset, {unused_pcc_setOffset_exact, pcc_if_o});
   module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
 
   ////////////////
