@@ -511,11 +511,6 @@ module ibex_id_stage #(
   // Suppress register write if there is an illegal CSR access or instruction is not executing
   assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i & ~id_exception;
 
-  // When the CHERI ALU writes a capability, we want to extract the address
-  // (ie the integer value) for RVFI
-  logic [31:0] rf_wdata_int_from_cap;
-  module_wrap64_getAddr rf_wdata_getAddr (cheri_result_ex_i, rf_wdata_int_from_cap);
-
   // Register file write data mux
   always_comb begin : rf_wdata_id_mux
     rf_wcap_id_o      = cheri_wrote_cap_i & cheri_en_o;
@@ -614,7 +609,7 @@ module ibex_id_stage #(
     .cheri_alu_exc_only_o  (cheri_alu_exc_only_o),
     .cheri_check_asr_o     (cheri_check_asr),
 
-    .cap_mode_i(),
+    .cap_mode_i(pcc_getFlags_o),
 
     .use_cap_base_o(),
 
@@ -1251,6 +1246,23 @@ module ibex_id_stage #(
 
   assign perf_mul_wait_o = stall_multdiv & mult_en_dec;
   assign perf_div_wait_o = stall_multdiv & div_en_dec;
+
+  ////////////////////////////////
+  // CHERI module instantiation //
+  ////////////////////////////////
+
+  // When the CHERI ALU writes a capability, we want to extract the address
+  // (ie the integer value) for RVFI
+  logic [31:0] rf_wdata_int_from_cap;
+  module_wrap64_getAddr rf_wdata_getAddr (cheri_result_ex_i, rf_wdata_int_from_cap);
+
+  // PCC permissions
+  logic [30:0] pcc_getPerms_o;
+  module_wrap64_getPerms pcc_getPerms (pcc_id_i, pcc_getPerms_o);
+
+  // PCC flag
+  logic pcc_getFlags_o;
+  module_wrap64_getFlags pcc_getFlags (pcc_id_i, pcc_getFlags_o);
 
   //////////
   // FCOV //
