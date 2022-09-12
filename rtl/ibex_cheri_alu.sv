@@ -5,6 +5,7 @@ module ibex_cheri_alu #(
   input ibex_pkg::cheri_base_opcode_e             base_opcode_i,
   input ibex_pkg::cheri_threeop_funct7_e          threeop_opcode_i,
   input ibex_pkg::cheri_s_a_d_funct5_e  s_a_d_opcode_i,
+  input logic                                     exc_only_i,
   input logic                                     instr_first_cycle_i,
 
   input logic [CheriCapWidth-1:0] operand_a_i,
@@ -15,6 +16,7 @@ module ibex_cheri_alu #(
   output ibex_pkg::alu_op_e alu_operator_o,
 
   input logic [32:0] alu_result_i,
+  input logic [31:0] btalu_result_i,
 
   output logic [CheriCapWidth-1:0] result_o,
   output logic wrote_capability,
@@ -197,650 +199,656 @@ module ibex_cheri_alu #(
     a_isInBounds_isTopIncluded_i = '0;
     b_isInBounds_isTopIncluded_i = '0;
 
-    case (base_opcode_i)
-      THREE_OP: begin
-        case (threeop_opcode_i)
-          C_SPECIAL_RW: begin
-            // operand b is the register id
-            // operand a is the data that is (maybe) going to be written to the register
-            // this operation is implemented in other places since there's nothing the ALU can do
-            // for it
-            result_o = operand_a_i;
-            wrote_capability = 1'b1;
+    // used for checking branch targets
+    if (exc_only_i) begin
+      exceptions_a_o[LENGTH_VIOLATION] = btalu_result_i < a_getBase_o
+                                       | {1'b0, btalu_result_i} + 2 > a_getTop_o;
+    end else begin
+      case (base_opcode_i)
+        THREE_OP: begin
+          case (threeop_opcode_i)
+            C_SPECIAL_RW: begin
+              // operand b is the register id
+              // operand a is the data that is (maybe) going to be written to the register
+              // this operation is implemented in other places since there's nothing the ALU can do
+              // for it
+              result_o = operand_a_i;
+              wrote_capability = 1'b1;
 
-            if (Verbosity) begin
-              $display("cspecialrw output: %h", result_o);
+              if (Verbosity) begin
+                $display("cspecialrw output: %h", result_o);
+              end
             end
-          end
 
-          C_SET_BOUNDS: begin
-            a_setBounds_i = operand_b_int;
-            result_o = a_setBounds_o[CheriCapWidth-1:0];
-            wrote_capability = 1'b1;
+            C_SET_BOUNDS: begin
+              a_setBounds_i = operand_b_int;
+              result_o = a_setBounds_o[CheriCapWidth-1:0];
+              wrote_capability = 1'b1;
 
-            alu_operand_a_o = a_getAddr_o;
-            alu_operand_b_o = operand_b_int;
-            alu_operator_o = ALU_ADD;
+              alu_operand_a_o = a_getAddr_o;
+              alu_operand_b_o = operand_b_int;
+              alu_operator_o = ALU_ADD;
 
-            exceptions_a_o[   TAG_VIOLATION] = exceptions_a[  TAG_VIOLATION];
-            exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[ SEAL_VIOLATION];
-            exceptions_a_o[LENGTH_VIOLATION] = exceptions_a[LENGTH_VIOLATION]
-                                             | alu_result_i > a_getTop_o;
+              exceptions_a_o[   TAG_VIOLATION] = exceptions_a[  TAG_VIOLATION];
+              exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[ SEAL_VIOLATION];
+              exceptions_a_o[LENGTH_VIOLATION] = exceptions_a[LENGTH_VIOLATION]
+                                               | alu_result_i > a_getTop_o;
 
-            if (Verbosity) begin
-              $display("csetbounds output: %h   exceptions: %h", result_o, exceptions_a_o);
+              if (Verbosity) begin
+                $display("csetbounds output: %h   exceptions: %h", result_o, exceptions_a_o);
+              end
             end
-          end
 
-          C_SET_BOUNDS_EXACT: begin
-            a_setBounds_i = operand_b_int;
-            result_o = a_setBounds_o[CheriCapWidth-1:0];
-            wrote_capability = 1'b1;
+            C_SET_BOUNDS_EXACT: begin
+              a_setBounds_i = operand_b_int;
+              result_o = a_setBounds_o[CheriCapWidth-1:0];
+              wrote_capability = 1'b1;
 
-            alu_operand_a_o = a_getAddr_o;
-            alu_operand_b_o = operand_b_int;
-            alu_operator_o = ALU_ADD;
+              alu_operand_a_o = a_getAddr_o;
+              alu_operand_b_o = operand_b_int;
+              alu_operator_o = ALU_ADD;
 
-            exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
-            exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
-            exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
-                                                     | alu_result_i > a_getTop_o;
-            exceptions_a_o[INEXACT_BOUNDS_VIOLATION] = ~a_setBounds_o[CheriCapWidth];
+              exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
+              exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
+              exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
+                                                       | alu_result_i > a_getTop_o;
+              exceptions_a_o[INEXACT_BOUNDS_VIOLATION] = ~a_setBounds_o[CheriCapWidth];
 
-            if (Verbosity) begin
-              $display("csetboundse output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("csetboundse output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_SEAL: begin
-            a_setKind_cap_i = operand_a_i;
-            // TODO this will need to be changed
-            a_setKind_i = b_getAddr_o[KindWidth-1:0];
-            result_o = a_setKind_o;
-            wrote_capability = 1'b1;
+            C_SEAL: begin
+              a_setKind_cap_i = operand_a_i;
+              // TODO this will need to be changed
+              a_setKind_i = b_getAddr_o[KindWidth-1:0];
+              result_o = a_setKind_o;
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            exceptions_b_o[        TAG_VIOLATION] = exceptions_b[        TAG_VIOLATION];
-            exceptions_b_o[       SEAL_VIOLATION] = exceptions_b[       SEAL_VIOLATION];
-            exceptions_b_o[     LENGTH_VIOLATION] = exceptions_b[     LENGTH_VIOLATION]
-                                                  | ({1'b0, b_getAddr_o} >= b_getTop_o)
-                                                  | (b_getAddr_o > CheriMaxOType);
-            exceptions_b_o[PERMIT_SEAL_VIOLATION] = exceptions_b[PERMIT_SEAL_VIOLATION];
+              exceptions_b_o[        TAG_VIOLATION] = exceptions_b[        TAG_VIOLATION];
+              exceptions_b_o[       SEAL_VIOLATION] = exceptions_b[       SEAL_VIOLATION];
+              exceptions_b_o[     LENGTH_VIOLATION] = exceptions_b[     LENGTH_VIOLATION]
+                                                    | ({1'b0, b_getAddr_o} >= b_getTop_o)
+                                                    | (b_getAddr_o > CheriMaxOType);
+              exceptions_b_o[PERMIT_SEAL_VIOLATION] = exceptions_b[PERMIT_SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("cseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("cseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_UNSEAL: begin
-            a_setPerms_i = a_getPerms_o;
-            a_setPerms_i[PermitGlobalIndex] = a_getPerms_o[PermitGlobalIndex] & b_getPerms_o[PermitGlobalIndex];
-            a_setKind_cap_i = a_setPerms_o;
-            a_setKind_i = {KindWidth{1'b1}};
-            result_o = a_setKind_o;
-            wrote_capability = 1'b1;
+            C_UNSEAL: begin
+              a_setPerms_i = a_getPerms_o;
+              a_setPerms_i[PermitGlobalIndex] = a_getPerms_o[PermitGlobalIndex] & b_getPerms_o[PermitGlobalIndex];
+              a_setKind_cap_i = a_setPerms_o;
+              a_setKind_i = {KindWidth{1'b1}};
+              result_o = a_setKind_o;
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[ TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
-            exceptions_a_o[SEAL_VIOLATION] = !a_isSealed_o;
+              exceptions_a_o[ TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = !a_isSealed_o;
 
-            exceptions_b_o[          TAG_VIOLATION] = exceptions_b[TAG_VIOLATION];
-            exceptions_b_o[         SEAL_VIOLATION] = b_isSealed_o;
-            exceptions_b_o[         TYPE_VIOLATION] = b_getAddr_o != {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o};
-            exceptions_b_o[PERMIT_UNSEAL_VIOLATION] = exceptions_b[PERMIT_UNSEAL_VIOLATION];
-            exceptions_b_o[       LENGTH_VIOLATION] = {1'b0, b_getAddr_o} >= b_getTop_o;
+              exceptions_b_o[          TAG_VIOLATION] = exceptions_b[TAG_VIOLATION];
+              exceptions_b_o[         SEAL_VIOLATION] = b_isSealed_o;
+              exceptions_b_o[         TYPE_VIOLATION] = b_getAddr_o != {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o};
+              exceptions_b_o[PERMIT_UNSEAL_VIOLATION] = exceptions_b[PERMIT_UNSEAL_VIOLATION];
+              exceptions_b_o[       LENGTH_VIOLATION] = {1'b0, b_getAddr_o} >= b_getTop_o;
 
-            if (Verbosity) begin
-              $display("cunseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("cunseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_AND_PERM: begin
-            a_setPerms_i = a_getPerms_o & operand_b_i[PermsWidth-1:0];
-            result_o = a_setPerms_o;
-            wrote_capability = 1'b1;
+            C_AND_PERM: begin
+              a_setPerms_i = a_getPerms_o & operand_b_i[PermsWidth-1:0];
+              result_o = a_setPerms_o;
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("candperm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("candperm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_SET_FLAGS: begin
-            a_setFlags_i = operand_b_i[FlagWidth-1:0];
-            result_o = a_setFlags_o;
-            wrote_capability = 1'b1;
+            C_SET_FLAGS: begin
+              a_setFlags_i = operand_b_i[FlagWidth-1:0];
+              result_o = a_setFlags_o;
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("csetflags output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("csetflags output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_SET_OFFSET: begin
-            a_setOffset_i = operand_b_int;
+            C_SET_OFFSET: begin
+              a_setOffset_i = operand_b_int;
 
-            result_o = a_setOffset_o[CheriCapWidth-1:0];
-            wrote_capability = 1'b1;
+              result_o = a_setOffset_o[CheriCapWidth-1:0];
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("csetoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("csetoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_SET_ADDR: begin
-            a_setAddr_i = operand_b_i[IntWidth-1:0];
-            result_o = a_setAddr_o[CheriCapWidth-1:0];
+            C_SET_ADDR: begin
+              a_setAddr_i = operand_b_i[IntWidth-1:0];
+              result_o = a_setAddr_o[CheriCapWidth-1:0];
 
-            wrote_capability = 1'b1;
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("csetaddr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("csetaddr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_INC_OFFSET: begin
-            // TODO remove adders here?
-            a_setOffset_i = a_getOffset_o + operand_b_int;
-            result_o = a_setOffset_o[CheriCapWidth-1:0];
-            // only preserve the tag if the result was "exact"
-            result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_setOffset_o[CheriCapWidth];
+            C_INC_OFFSET: begin
+              // TODO remove adders here?
+              a_setOffset_i = a_getOffset_o + operand_b_int;
+              result_o = a_setOffset_o[CheriCapWidth-1:0];
+              // only preserve the tag if the result was "exact"
+              result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_setOffset_o[CheriCapWidth];
 
-            wrote_capability = 1'b1;
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("cincoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("cincoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_TO_PTR: begin
-            result_o[IntWidth-1:0] = a_isValidCap_o ? a_getAddr_o - b_getBase_o : IntWidth'(1'b0);
+            C_TO_PTR: begin
+              result_o[IntWidth-1:0] = a_isValidCap_o ? a_getAddr_o - b_getBase_o : IntWidth'(1'b0);
 
-            wrote_capability = 1'b0;
+              wrote_capability = 1'b0;
 
-            exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-            exceptions_b_o[ TAG_VIOLATION] = exceptions_b[ TAG_VIOLATION];
+              exceptions_b_o[ TAG_VIOLATION] = exceptions_b[ TAG_VIOLATION];
 
-            if (Verbosity) begin
-              $display("ctoptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("ctoptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_FROM_PTR: begin
-            a_setOffset_i = operand_b_i[IntWidth-1:0];
+            C_FROM_PTR: begin
+              a_setOffset_i = operand_b_i[IntWidth-1:0];
 
-            alu_operand_a_o = a_getBase_o;
-            alu_operand_b_o = operand_b_int;
-            alu_operator_o = ALU_ADD;
+              alu_operand_a_o = a_getBase_o;
+              alu_operand_b_o = operand_b_int;
+              alu_operator_o = ALU_ADD;
 
-            result_o = operand_b_i == '0 ? operand_b_i
-                     : a_setOffset_o[CheriCapWidth-1:0];
-                     //: {{(CheriCapWidth-IntWidth){1'b0}}, alu_result_i[IntWidth-1:0]};
+              result_o = operand_b_i == '0 ? operand_b_i
+                       : a_setOffset_o[CheriCapWidth-1:0];
+                       //: {{(CheriCapWidth-IntWidth){1'b0}}, alu_result_i[IntWidth-1:0]};
 
-            wrote_capability = operand_b_i != '0;
+              wrote_capability = operand_b_i != '0;
 
-            exceptions_a_o[ TAG_VIOLATION] = operand_b_i != 0 && exceptions_a[ TAG_VIOLATION];
-            exceptions_a_o[SEAL_VIOLATION] = operand_b_i != 0 && exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[ TAG_VIOLATION] = operand_b_i != 0 && exceptions_a[ TAG_VIOLATION];
+              exceptions_a_o[SEAL_VIOLATION] = operand_b_i != 0 && exceptions_a[SEAL_VIOLATION];
 
-            if (Verbosity) begin
-              $display("cfromptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("cfromptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_SUB: begin
-            alu_operand_a_o = a_getAddr_o;
-            alu_operand_b_o = b_getAddr_o;
-            alu_operator_o = ALU_SUB;
+            C_SUB: begin
+              alu_operand_a_o = a_getAddr_o;
+              alu_operand_b_o = b_getAddr_o;
+              alu_operator_o = ALU_SUB;
 
-            result_o[IntWidth-1:0] = a_getAddr_o - b_getAddr_o;
-            wrote_capability = 1'b0;
+              result_o[IntWidth-1:0] = a_getAddr_o - b_getAddr_o;
+              wrote_capability = 1'b0;
 
-            if (Verbosity) begin
-              $display("csub output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("csub output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_BUILD_CAP: begin
-            // preserve sentries
-            // upper bits of kind tell us it's unsealed
-            b_setKind_i = b_getKind_o[KindWidth-1:OTypeWidth] == 'h1 ? b_getKind_o
-                                                                     : {3'h0, 4'hX};
-            result_o = b_setKind_o | {1'b1, {CheriCapWidth-1{1'b0}}};
-            wrote_capability = 1'b1;
+            C_BUILD_CAP: begin
+              // preserve sentries
+              // upper bits of kind tell us it's unsealed
+              b_setKind_i = b_getKind_o[KindWidth-1:OTypeWidth] == 'h1 ? b_getKind_o
+                                                                       : {3'h0, 4'hX};
+              result_o = b_setKind_o | {1'b1, {CheriCapWidth-1{1'b0}}};
+              wrote_capability = 1'b1;
 
-            exceptions_a_o[             TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
-            exceptions_a_o[            SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
-            exceptions_a_o[          LENGTH_VIOLATION] = (b_getBase_o < a_getBase_o)
-                                                       | (b_getTop_o > a_getTop_o);
-            exceptions_a_o[SOFTWARE_DEFINED_VIOLATION] = (a_getPerms_o & b_getPerms_o) != b_getPerms_o;
+              exceptions_a_o[             TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
+              exceptions_a_o[            SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o[          LENGTH_VIOLATION] = (b_getBase_o < a_getBase_o)
+                                                         | (b_getTop_o > a_getTop_o);
+              exceptions_a_o[SOFTWARE_DEFINED_VIOLATION] = (a_getPerms_o & b_getPerms_o) != b_getPerms_o;
 
-            // Top is 1 bit longer than base (ie 33 bit when XLEN is 32)
-            exceptions_b_o[LENGTH_VIOLATION] = {1'b0, b_getBase_o} > b_getTop_o;
+              // Top is 1 bit longer than base (ie 33 bit when XLEN is 32)
+              exceptions_b_o[LENGTH_VIOLATION] = {1'b0, b_getBase_o} > b_getTop_o;
 
-            if (Verbosity) begin
-              $display("cbuildcap output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              if (Verbosity) begin
+                $display("cbuildcap output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
             end
-          end
 
-          C_COPY_TYPE: begin
-            /*
-              in implementing this instruction, i've followed this code rather than the one in the sail spec
-              this should be functionally equivalent, but i've included it just in case i've made a blunder
+            C_COPY_TYPE: begin
+              /*
+                in implementing this instruction, i've followed this code rather than the one in the sail spec
+                this should be functionally equivalent, but i've included it just in case i've made a blunder
 
-              let cb_val = readCapReg(cb);
-              let ct_val = readCapReg(ct);
-              let cb_base = getCapBase(cb_val);
-              let cb_top = getCapTop(cb_val);
-              let ct_otype = unsigned(ct_val.otype);
-              if not (cb_val.tag) then {
-                handle_cheri_reg_exception(CapEx_TagViolation, cb);
-                RETIRE_FAIL
-              } else if cb_val.sealed then {
-                handle_cheri_reg_exception(CapEx_SealViolation, cb);
-                RETIRE_FAIL
-              } else if ct_val.sealed && ct_otype < cb_base then {
-                handle_cheri_reg_exception(CapEx_LengthViolation, cb);
-                RETIRE_FAIL
-              } else if ct_val.sealed && ct_otype >= cb_top then {
-                handle_cheri_reg_exception(CapEx_LengthViolation, cb);
-                RETIRE_FAIL
-              } else {
-                let (success, cap) = setCapOffset(cb_val, to_bits(64, ct_otype - cb_base));
-                assert(success, "CopyType: offset is in bounds so should be representable");
-                writeCapReg(cd, ct_val.sealed ? cap : int_to_cap(0xffffffffffffffff));
-                RETIRE_SUCCESS
-              }
+                let cb_val = readCapReg(cb);
+                let ct_val = readCapReg(ct);
+                let cb_base = getCapBase(cb_val);
+                let cb_top = getCapTop(cb_val);
+                let ct_otype = unsigned(ct_val.otype);
+                if not (cb_val.tag) then {
+                  handle_cheri_reg_exception(CapEx_TagViolation, cb);
+                  RETIRE_FAIL
+                } else if cb_val.sealed then {
+                  handle_cheri_reg_exception(CapEx_SealViolation, cb);
+                  RETIRE_FAIL
+                } else if ct_val.sealed && ct_otype < cb_base then {
+                  handle_cheri_reg_exception(CapEx_LengthViolation, cb);
+                  RETIRE_FAIL
+                } else if ct_val.sealed && ct_otype >= cb_top then {
+                  handle_cheri_reg_exception(CapEx_LengthViolation, cb);
+                  RETIRE_FAIL
+                } else {
+                  let (success, cap) = setCapOffset(cb_val, to_bits(64, ct_otype - cb_base));
+                  assert(success, "CopyType: offset is in bounds so should be representable");
+                  writeCapReg(cd, ct_val.sealed ? cap : int_to_cap(0xffffffffffffffff));
+                  RETIRE_SUCCESS
+                }
+              */
+
+              logic b_has_reserved_otype = b_isSealedWithType_o;
+              a_setAddr_i = {{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o};
+              result_o = b_has_reserved_otype ? a_setAddr_o[CheriCapWidth-1:0]
+                                              : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
+              wrote_capability = b_has_reserved_otype;
+
+              exceptions_a_o[   TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
+              exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              // Not the same as a "common" length violation so we can't use the common case
+              exceptions_a_o[LENGTH_VIOLATION] = !b_has_reserved_otype
+                                               & ({{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o} < a_getBase_o
+                                                 |{{(IntWidth-OTypeWidth+1){1'b0}}, b_getOType_o} >= a_getTop_o);
+
+              if (Verbosity) begin
+                $display("ccopytype output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
+            end
+
+            C_C_SEAL: begin
+              // whether B passes the conditions to seal
+              logic b_is_ok = b_isValidCap_o & b_isInBounds_o & b_getAddr_o != {IntWidth{1'b1}};
+              logic a_is_ok = a_isValidCap_o & ~a_isSealed_o;
+              a_setKind_cap_i = operand_a_i;
+              // TODO this will need to be changed
+              a_setKind_i = b_getAddr_o[KindWidth-1:0];
+              result_o = !b_is_ok | !a_is_ok ? operand_a_i : a_setKind_o;
+              wrote_capability = 1'b1;
+
+              exceptions_a_o[TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
+
+              exceptions_b_o[       SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[       SEAL_VIOLATION];
+              exceptions_b_o[PERMIT_SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[PERMIT_SEAL_VIOLATION];
+              exceptions_b_o[     LENGTH_VIOLATION] = a_is_ok && b_is_ok && (exceptions_b[LENGTH_VIOLATION]
+                                                                            |b_getAddr_o > CheriMaxOType);
+
+              if (Verbosity) begin
+                $display("ccseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
+            end
+
+            C_TEST_SUBSET: begin
+              result_o[0] = a_isValidCap_o != b_isValidCap_o              ? 1'b0
+                          : b_getBase_o < a_getBase_o                     ? 1'b0
+                          : b_getTop_o > a_getTop_o                       ? 1'b0
+                          : (b_getPerms_o & a_getPerms_o) != b_getPerms_o ? 1'b0
+                          : 1'b1;
+              wrote_capability = 1'b0;
+
+              if (Verbosity) begin
+                $display("ctestsubset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              end
+            end
+
+            /* This was the old way of implementing CInvoke, which had several
+             * versions, and is now no longer used.
+            //TWO_SOURCE: begin
+              // when trying to read this using the Sail definitions, cs is my operand_a and cb is my operand_b
+              //unique case (ccall_type_i)
+              //  CCALL_CYCLE1: begin
+              //    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
+
+              //    exceptions_a_o =( exceptions_a[TAG_VIOLATION]                                            ) << TAG_VIOLATION
+              //                   |( !exceptions_a[SEAL_VIOLATION]                                          ) << SEAL_VIOLATION // we want it to be sealed
+              //                   |( a_getKind_o != b_getKind_o                                             ) << TYPE_VIOLATION
+              //                   |( exceptions_a[PERMIT_CCALL_VIOLATION]                                   ) << PERMIT_CCALL_VIOLATION
+              //                   |( exceptions_a[PERMIT_EXECUTE_VIOLATION]                                 ) << PERMIT_EXECUTE_VIOLATION
+              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} < a_getBase_o                   ) << LENGTH_VIOLATION
+              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} + `MIN_INSTR_BYTES > a_getTop_o ) << LENGTH_VIOLATION;
+
+              //    exceptions_b_o =( exceptions_b[TAG_VIOLATION]             ) << TAG_VIOLATION
+              //                   |( !exceptions_b[SEAL_VIOLATION]           ) << SEAL_VIOLATION
+              //                   |( !exceptions_b[PERMIT_EXECUTE_VIOLATION] ) << PERMIT_EXECUTE_VIOLATION
+              //                   |( exceptions_b[PERMIT_CCALL_VIOLATION]    ) << PERMIT_CCALL_VIOLATION;
+
+              //    a_setKind_cap_i = a_setAddr_o;
+              //    a_setKind_i = {KindWidth{1'b1}};
+              //    wrote_capability = 1'b1;
+              //    result_o = a_setKind_o;
+              //  end
+
+              //  CCALL_CYCLE2: begin
+              //    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
+
+              //    exceptions_a_o =( exceptions_a[TAG_VIOLATION]                                            ) << TAG_VIOLATION
+              //                   |( !exceptions_a[SEAL_VIOLATION]                                          ) << SEAL_VIOLATION // we want it to be sealed
+              //                   |( a_getKind_o != b_getKind_o                                             ) << TYPE_VIOLATION
+              //                   |( exceptions_a[PERMIT_CCALL_VIOLATION]                                   ) << PERMIT_CCALL_VIOLATION
+              //                   |( exceptions_a[PERMIT_EXECUTE_VIOLATION]                                 ) << PERMIT_EXECUTE_VIOLATION
+              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} < a_getBase_o                   ) << LENGTH_VIOLATION
+              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} + `MIN_INSTR_BYTES > a_getTop_o ) << LENGTH_VIOLATION;
+
+              //    exceptions_b_o =( exceptions_b[TAG_VIOLATION]                ) << TAG_VIOLATION
+              //                   |( (!exceptions_b[SEAL_VIOLATION]             ) << SEAL_VIOLATION)
+              //                   |( ((!exceptions_b[PERMIT_EXECUTE_VIOLATION]) ) << PERMIT_EXECUTE_VIOLATION)
+              //                   |( exceptions_b[PERMIT_CCALL_VIOLATION]       ) << PERMIT_CCALL_VIOLATION;
+
+              //    b_setKind_i = {KindWidth{1'b1}};
+              //    wrote_capability = 1'b1;
+              //    result_o = b_setKind_o;
+              //  end
+              //endcase
+            //end
             */
 
-            logic b_has_reserved_otype = b_isSealedWithType_o;
-            a_setAddr_i = {{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o};
-            result_o = b_has_reserved_otype ? a_setAddr_o[CheriCapWidth-1:0]
-                                            : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
-            wrote_capability = b_has_reserved_otype;
+            C_INVOKE: begin
+              logic [IntWidth-1:0] new_addr = {a_getAddr_o[IntWidth-1:1], 1'b0};
+              // first cycle operations (unseal capability a and clear lowest bit)
+              a_setAddr_i = new_addr;
+              a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0]; // discard "exact" bit
+              a_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability a
 
-            exceptions_a_o[   TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
-            exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
-            // Not the same as a "common" length violation so we can't use the common case
-            exceptions_a_o[LENGTH_VIOLATION] = !b_has_reserved_otype
-                                             & ({{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o} < a_getBase_o
-                                               |{{(IntWidth-OTypeWidth+1){1'b0}}, b_getOType_o} >= a_getTop_o);
+              // second cycle operations (unseal capability b)
+              b_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability b
 
-            if (Verbosity) begin
-              $display("ccopytype output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+              wrote_capability = 1'b1;
+              result_o = instr_first_cycle_i ? a_setKind_o : b_setKind_o;
+
+              // check if we can fetch a full instruction with the bounds on this capability
+              alu_operand_a_o = new_addr;
+              alu_operand_b_o = 2;
+              alu_operator_o  = ALU_ADD;
+
+              exceptions_a_o[           TAG_VIOLATION] =  exceptions_a[           TAG_VIOLATION];
+              // capability a SHOULD be sealed
+              exceptions_a_o[          SEAL_VIOLATION] = ~exceptions_a[          SEAL_VIOLATION];
+              exceptions_a_o[          TYPE_VIOLATION] =  a_getKind_o != b_getKind_o;
+              exceptions_a_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_a[PERMIT_CINVOKE_VIOLATION];
+              exceptions_a_o[PERMIT_EXECUTE_VIOLATION] =  exceptions_a[PERMIT_EXECUTE_VIOLATION];
+              exceptions_a_o[        LENGTH_VIOLATION] =  new_addr < a_getBase_o
+                                                       |  alu_result_i > a_getTop_o;
+
+              exceptions_b_o[           TAG_VIOLATION] =  exceptions_b[           TAG_VIOLATION];
+              // capability b SHOULD be sealed
+              exceptions_b_o[          SEAL_VIOLATION] = ~exceptions_b[          SEAL_VIOLATION];
+              // capability b SHOULD NOT be executable (it should be a data capability)
+              exceptions_b_o[PERMIT_EXECUTE_VIOLATION] = ~exceptions_b[PERMIT_EXECUTE_VIOLATION];
+              exceptions_b_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_b[PERMIT_CINVOKE_VIOLATION];
             end
-          end
 
-          C_C_SEAL: begin
-            // whether B passes the conditions to seal
-            logic b_is_ok = b_isValidCap_o & b_isInBounds_o & b_getAddr_o != {IntWidth{1'b1}};
-            logic a_is_ok = a_isValidCap_o & ~a_isSealed_o;
-            a_setKind_cap_i = operand_a_i;
-            // TODO this will need to be changed
-            a_setKind_i = b_getAddr_o[KindWidth-1:0];
-            result_o = !b_is_ok | !a_is_ok ? operand_a_i : a_setKind_o;
-            wrote_capability = 1'b1;
+            SOURCE_AND_DEST: begin
+              case(s_a_d_opcode_i)
+                C_GET_PERM: begin
+                  result_o[PermsWidth-1:0] = a_getPerms_o;
+                  wrote_capability = 1'b0;
 
-            exceptions_a_o[TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
-
-            exceptions_b_o[       SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[       SEAL_VIOLATION];
-            exceptions_b_o[PERMIT_SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[PERMIT_SEAL_VIOLATION];
-            exceptions_b_o[     LENGTH_VIOLATION] = a_is_ok && b_is_ok && (exceptions_b[LENGTH_VIOLATION]
-                                                                          |b_getAddr_o > CheriMaxOType);
-
-            if (Verbosity) begin
-              $display("ccseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
-            end
-          end
-
-          C_TEST_SUBSET: begin
-            result_o[0] = a_isValidCap_o != b_isValidCap_o              ? 1'b0
-                        : b_getBase_o < a_getBase_o                     ? 1'b0
-                        : b_getTop_o > a_getTop_o                       ? 1'b0
-                        : (b_getPerms_o & a_getPerms_o) != b_getPerms_o ? 1'b0
-                        : 1'b1;
-            wrote_capability = 1'b0;
-
-            if (Verbosity) begin
-              $display("ctestsubset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
-            end
-          end
-
-          /* This was the old way of implementing CInvoke, which had several
-           * versions, and is now no longer used.
-          //TWO_SOURCE: begin
-            // when trying to read this using the Sail definitions, cs is my operand_a and cb is my operand_b
-            //unique case (ccall_type_i)
-            //  CCALL_CYCLE1: begin
-            //    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
-
-            //    exceptions_a_o =( exceptions_a[TAG_VIOLATION]                                            ) << TAG_VIOLATION
-            //                   |( !exceptions_a[SEAL_VIOLATION]                                          ) << SEAL_VIOLATION // we want it to be sealed
-            //                   |( a_getKind_o != b_getKind_o                                             ) << TYPE_VIOLATION
-            //                   |( exceptions_a[PERMIT_CCALL_VIOLATION]                                   ) << PERMIT_CCALL_VIOLATION
-            //                   |( exceptions_a[PERMIT_EXECUTE_VIOLATION]                                 ) << PERMIT_EXECUTE_VIOLATION
-            //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} < a_getBase_o                   ) << LENGTH_VIOLATION
-            //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} + `MIN_INSTR_BYTES > a_getTop_o ) << LENGTH_VIOLATION;
-
-            //    exceptions_b_o =( exceptions_b[TAG_VIOLATION]             ) << TAG_VIOLATION
-            //                   |( !exceptions_b[SEAL_VIOLATION]           ) << SEAL_VIOLATION
-            //                   |( !exceptions_b[PERMIT_EXECUTE_VIOLATION] ) << PERMIT_EXECUTE_VIOLATION
-            //                   |( exceptions_b[PERMIT_CCALL_VIOLATION]    ) << PERMIT_CCALL_VIOLATION;
-
-            //    a_setKind_cap_i = a_setAddr_o;
-            //    a_setKind_i = {KindWidth{1'b1}};
-            //    wrote_capability = 1'b1;
-            //    result_o = a_setKind_o;
-            //  end
-
-            //  CCALL_CYCLE2: begin
-            //    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
-
-            //    exceptions_a_o =( exceptions_a[TAG_VIOLATION]                                            ) << TAG_VIOLATION
-            //                   |( !exceptions_a[SEAL_VIOLATION]                                          ) << SEAL_VIOLATION // we want it to be sealed
-            //                   |( a_getKind_o != b_getKind_o                                             ) << TYPE_VIOLATION
-            //                   |( exceptions_a[PERMIT_CCALL_VIOLATION]                                   ) << PERMIT_CCALL_VIOLATION
-            //                   |( exceptions_a[PERMIT_EXECUTE_VIOLATION]                                 ) << PERMIT_EXECUTE_VIOLATION
-            //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} < a_getBase_o                   ) << LENGTH_VIOLATION
-            //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} + `MIN_INSTR_BYTES > a_getTop_o ) << LENGTH_VIOLATION;
-
-            //    exceptions_b_o =( exceptions_b[TAG_VIOLATION]                ) << TAG_VIOLATION
-            //                   |( (!exceptions_b[SEAL_VIOLATION]             ) << SEAL_VIOLATION)
-            //                   |( ((!exceptions_b[PERMIT_EXECUTE_VIOLATION]) ) << PERMIT_EXECUTE_VIOLATION)
-            //                   |( exceptions_b[PERMIT_CCALL_VIOLATION]       ) << PERMIT_CCALL_VIOLATION;
-
-            //    b_setKind_i = {KindWidth{1'b1}};
-            //    wrote_capability = 1'b1;
-            //    result_o = b_setKind_o;
-            //  end
-            //endcase
-          //end
-          */
-
-          C_INVOKE: begin
-            logic [IntWidth-1:0] new_addr = {a_getAddr_o[IntWidth-1:1], 1'b0};
-            // first cycle operations (unseal capability a and clear lowest bit)
-            a_setAddr_i = new_addr;
-            a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0]; // discard "exact" bit
-            a_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability a
-
-            // second cycle operations (unseal capability b)
-            b_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability b
-
-            wrote_capability = 1'b1;
-            result_o = instr_first_cycle_i ? a_setKind_o : b_setKind_o;
-
-            // check if we can fetch a full instruction with the bounds on this capability
-            alu_operand_a_o = new_addr;
-            alu_operand_b_o = 2;
-            alu_operator_o  = ALU_ADD;
-
-            exceptions_a_o[           TAG_VIOLATION] =  exceptions_a[           TAG_VIOLATION];
-            // capability a SHOULD be sealed
-            exceptions_a_o[          SEAL_VIOLATION] = ~exceptions_a[          SEAL_VIOLATION];
-            exceptions_a_o[          TYPE_VIOLATION] =  a_getKind_o != b_getKind_o;
-            exceptions_a_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_a[PERMIT_CINVOKE_VIOLATION];
-            exceptions_a_o[PERMIT_EXECUTE_VIOLATION] =  exceptions_a[PERMIT_EXECUTE_VIOLATION];
-            exceptions_a_o[        LENGTH_VIOLATION] =  new_addr < a_getBase_o
-                                                     |  alu_result_i > a_getTop_o;
-
-            exceptions_b_o[           TAG_VIOLATION] =  exceptions_b[           TAG_VIOLATION];
-            // capability b SHOULD be sealed
-            exceptions_b_o[          SEAL_VIOLATION] = ~exceptions_b[          SEAL_VIOLATION];
-            // capability b SHOULD NOT be executable (it should be a data capability)
-            exceptions_b_o[PERMIT_EXECUTE_VIOLATION] = ~exceptions_b[PERMIT_EXECUTE_VIOLATION];
-            exceptions_b_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_b[PERMIT_CINVOKE_VIOLATION];
-          end
-
-          SOURCE_AND_DEST: begin
-            case(s_a_d_opcode_i)
-              C_GET_PERM: begin
-                result_o[PermsWidth-1:0] = a_getPerms_o;
-                wrote_capability = 1'b0;
-
-                if (Verbosity) begin
-                  $display("cgetperm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgetperm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_TYPE: begin
-                result_o[IntWidth-1:0] = a_isSealed_o ? {{(IntWidth-OTypeWidth){a_getOType_o[OTypeWidth-1]}}, a_getOType_o}
-                                                      : {IntWidth{1'b1}};
-                wrote_capability = 1'b0;
+                C_GET_TYPE: begin
+                  result_o[IntWidth-1:0] = a_isSealed_o ? {{(IntWidth-OTypeWidth){a_getOType_o[OTypeWidth-1]}}, a_getOType_o}
+                                                        : {IntWidth{1'b1}};
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgettype output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgettype output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_BASE: begin
-                result_o[IntWidth-1:0] = a_getBase_o;
-                wrote_capability = 1'b0;
+                C_GET_BASE: begin
+                  result_o[IntWidth-1:0] = a_getBase_o;
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgetbase output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgetbase output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_LEN: begin
-                result_o[IntWidth-1:0] = a_getLength_o[LengthWidth-1] ? {IntWidth{1'b1}}
-                                                                      : a_getLength_o[IntWidth-1:0];
-                wrote_capability = 1'b0;
+                C_GET_LEN: begin
+                  result_o[IntWidth-1:0] = a_getLength_o[LengthWidth-1] ? {IntWidth{1'b1}}
+                                                                        : a_getLength_o[IntWidth-1:0];
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgetlen output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgetlen output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_TAG: begin
-                result_o[0] = a_isValidCap_o;
-                wrote_capability = 1'b0;
+                C_GET_TAG: begin
+                  result_o[0] = a_isValidCap_o;
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgettag output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgettag output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_SEALED: begin
-                result_o[0] = a_isSealed_o;
-                wrote_capability = 1'b0;
+                C_GET_SEALED: begin
+                  result_o[0] = a_isSealed_o;
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgetsealed output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgetsealed output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_OFFSET: begin
-                result_o[IntWidth-1:0] = a_getOffset_o;
-                wrote_capability = 1'b0;
+                C_GET_OFFSET: begin
+                  result_o[IntWidth-1:0] = a_getOffset_o;
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgetoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgetoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_GET_FLAGS: begin
-                result_o[FlagWidth-1:0] = a_getFlags_o;
-                wrote_capability = 1'b0;
+                C_GET_FLAGS: begin
+                  result_o[FlagWidth-1:0] = a_getFlags_o;
+                  wrote_capability = 1'b0;
 
-                if (Verbosity) begin
-                  $display("cgetflags output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cgetflags output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_MOVE: begin
-                result_o = operand_a_i;
-                wrote_capability = 1'b1;
+                C_MOVE: begin
+                  result_o = operand_a_i;
+                  wrote_capability = 1'b1;
 
-                if (Verbosity) begin
-                  $display("cmove output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("cmove output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_CLEAR_TAG: begin
-                a_setValidCap_i = 1'b0;
-                result_o = a_setValidCap_o;
-                wrote_capability = 1'b1;
+                C_CLEAR_TAG: begin
+                  a_setValidCap_i = 1'b0;
+                  result_o = a_setValidCap_o;
+                  wrote_capability = 1'b1;
 
-                if (Verbosity) begin
-                  $display("ccleartag output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  if (Verbosity) begin
+                    $display("ccleartag output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
                 end
-              end
 
-              C_JALR: begin
-                // current implementation of JAL and JALR:
-                // ibex takes 2 cycles to do a normal JAL and JALR, so this one can also take 2 cycles
-                // in the first cycle, ibex calculates the jump target and sends it to the IF stage
-                // in the second cycle, ibex calculates the old PC + 4 and stores that in the destination
-                // register
+                C_JALR: begin
+                  // current implementation of JAL and JALR:
+                  // ibex takes 2 cycles to do a normal JAL and JALR, so this one can also take 2 cycles
+                  // in the first cycle, ibex calculates the jump target and sends it to the IF stage
+                  // in the second cycle, ibex calculates the old PC + 4 and stores that in the destination
+                  // register
 
-                // potential implementation of CJALR:
-                // we call this instruction here for the first cycle. we do all the exception checking
-                // here, and calculate the next PCC from the input register
-                // in the second cycle, we just do an incoffsetimm with a = old pcc and b = 4
-                // issue is this isn't a very clean way of doing this - we need to fake incoffsetimm instruction
-                // in the decoder. However, ibex already does it this way.
+                  // potential implementation of CJALR:
+                  // we call this instruction here for the first cycle. we do all the exception checking
+                  // here, and calculate the next PCC from the input register
+                  // in the second cycle, we just do an incoffsetimm with a = old pcc and b = 4
+                  // issue is this isn't a very clean way of doing this - we need to fake incoffsetimm instruction
+                  // in the decoder. However, ibex already does it this way.
 
-                if (instr_first_cycle_i) begin
-                  // for exception checking
-                  alu_operand_a_o = {a_getAddr_o[IntWidth-1:1], 1'b0};
-                  alu_operand_b_o = 2; // The minimum instruction size in bytes
-                  alu_operator_o = ALU_ADD;
+                  if (instr_first_cycle_i) begin
+                    // for exception checking
+                    alu_operand_a_o = {a_getAddr_o[IntWidth-1:1], 1'b0};
+                    alu_operand_b_o = 2; // The minimum instruction size in bytes
+                    alu_operator_o = ALU_ADD;
 
-                  // set the lowest bit of the address to 0
-                  a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
+                    // set the lowest bit of the address to 0
+                    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
 
-                  // unseal the capability
-                  a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
-                  a_setKind_i = 7'h0F;
+                    // unseal the capability
+                    a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
+                    a_setKind_i = 7'h0F;
 
+                    result_o = a_setKind_o;
+                  end else begin
+                    alu_operand_a_o = a_getAddr_o;
+                    alu_operand_b_o = 4;
+                    alu_operator_o  = ALU_ADD;
+                    a_setAddr_i     = alu_result_i[IntWidth-1:0];
+                    a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
+                    a_setKind_i     = 7'h1E;
+                    result_o        = a_setKind_o;
+                  end
+
+                  wrote_capability = 1'b1;
+
+                  if (instr_first_cycle_i) begin
+                    exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
+                    // capabilities sealed as Sentries are allowed
+                    exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION]
+                                                             & a_getKind_o != 7'h1E;
+                    exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
+                    exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
+                                                             | (alu_result_i > a_getTop_o);
+                    // we don't care about trying to throw the last exception since we do support
+                    // compressed instructions
+                  end
+
+                  if (Verbosity) begin
+                    $display("cjalr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
+                end
+
+                // TODO implement elsewhere
+                CLEAR: begin
+                end
+
+                C_GET_ADDR: begin
+                  result_o[IntWidth-1:0] = a_getAddr_o;
+                  wrote_capability = 1'b0;
+
+                  if (Verbosity) begin
+                    $display("cgetaddr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                  end
+                end
+
+                C_SEAL_ENTRY: begin
+                  a_setKind_cap_i = operand_a_i;
+                  a_setKind_i = 7'h1E;
                   result_o = a_setKind_o;
-                end else begin
-                  alu_operand_a_o = a_getAddr_o;
-                  alu_operand_b_o = 4;
-                  alu_operator_o  = ALU_ADD;
-                  a_setAddr_i     = alu_result_i[IntWidth-1:0];
-                  a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
-                  a_setKind_i     = 7'h1E;
-                  result_o        = a_setKind_o;
-                end
+                  wrote_capability = 1'b1;
 
-                wrote_capability = 1'b1;
-
-                if (instr_first_cycle_i) begin
                   exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
-                  // capabilities sealed as Sentries are allowed
-                  exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION]
-                                                           & a_getKind_o != 7'h1E;
+                  exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
                   exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
-                  exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
-                                                           | (alu_result_i > a_getTop_o);
-                  // we don't care about trying to throw the last exception since we do support
-                  // compressed instructions
                 end
 
-                if (Verbosity) begin
-                  $display("cjalr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                C_ROUND_REP_LEN: begin
+                  a_getRepLen_i = operand_a_i[IntWidth-1:0];
+                  result_o[IntWidth-1:0] = a_getRepLen_o;
+                  wrote_capability = 1'b0;
                 end
-              end
 
-              // TODO implement elsewhere
-              CLEAR: begin
-              end
-
-              C_GET_ADDR: begin
-                result_o[IntWidth-1:0] = a_getAddr_o;
-                wrote_capability = 1'b0;
-
-                if (Verbosity) begin
-                  $display("cgetaddr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+                C_REP_ALIGN_MASK: begin
+                  a_getRepAlignMask_i = operand_a_i[IntWidth-1:0];
+                  result_o[IntWidth-1:0] = a_getRepAlignMask_o;
+                  wrote_capability = 1'b0;
                 end
-              end
 
-              C_SEAL_ENTRY: begin
-                a_setKind_cap_i = operand_a_i;
-                a_setKind_i = 7'h1E;
-                result_o = a_setKind_o;
-                wrote_capability = 1'b1;
+                default: begin
+                  //$display("something went wrong in the ibex_alu");
+                end
+              endcase
+            end
 
-                exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
-                exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
-                exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
-              end
-
-              C_ROUND_REP_LEN: begin
-                a_getRepLen_i = operand_a_i[IntWidth-1:0];
-                result_o[IntWidth-1:0] = a_getRepLen_o;
-                wrote_capability = 1'b0;
-              end
-
-              C_REP_ALIGN_MASK: begin
-                a_getRepAlignMask_i = operand_a_i[IntWidth-1:0];
-                result_o[IntWidth-1:0] = a_getRepAlignMask_o;
-                wrote_capability = 1'b0;
-              end
-
-              default: begin
-                //$display("something went wrong in the ibex_alu");
-              end
-            endcase
-          end
-
-          default: begin
-            //$display("something went wrong in the ibex_alu");
-          end
-        endcase
-      end
-
-      C_INC_OFFSET_IMM: begin
-        // TODO remove adders?
-        a_setOffset_i = a_getOffset_o + operand_b_int;
-        result_o = a_setOffset_o[CheriCapWidth-1:0];
-        // only preserve the tag if the result was "exact"
-        result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_setOffset_o[CheriCapWidth];
-        wrote_capability = 1'b1;
-
-        exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
-
-        if (Verbosity) begin
-          $display  ("cincoffsetimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+            default: begin
+              //$display("something went wrong in the ibex_alu");
+            end
+          endcase
         end
-      end
 
-      C_SET_BOUNDS_IMM: begin
-        // need to truncate input since we want it to be unsigned
-        a_setBounds_i = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
-        result_o = a_setBounds_o[CheriCapWidth-1:0];
-        wrote_capability = 1'b1;
+        C_INC_OFFSET_IMM: begin
+          // TODO remove adders?
+          a_setOffset_i = a_getOffset_o + operand_b_int;
+          result_o = a_setOffset_o[CheriCapWidth-1:0];
+          // only preserve the tag if the result was "exact"
+          result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_setOffset_o[CheriCapWidth];
+          wrote_capability = 1'b1;
 
-        alu_operand_a_o = a_getAddr_o;
-        alu_operand_b_o = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
-        alu_operator_o = ALU_ADD;
+          exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
-        exceptions_a_o[   TAG_VIOLATION] = exceptions_a[   TAG_VIOLATION];
-        exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[  SEAL_VIOLATION];
-        exceptions_a_o[LENGTH_VIOLATION] = exceptions_a[LENGTH_VIOLATION]
-                                         | alu_result_i > a_getTop_o;
-
-        if (Verbosity) begin
-          $display("csetboundsimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+          if (Verbosity) begin
+            $display  ("cincoffsetimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+          end
         end
-      end
 
-      default: begin
-        //$display("something went wrong in the ibex_alu");
-      end
-    endcase
+        C_SET_BOUNDS_IMM: begin
+          // need to truncate input since we want it to be unsigned
+          a_setBounds_i = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
+          result_o = a_setBounds_o[CheriCapWidth-1:0];
+          wrote_capability = 1'b1;
+
+          alu_operand_a_o = a_getAddr_o;
+          alu_operand_b_o = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
+          alu_operator_o = ALU_ADD;
+
+          exceptions_a_o[   TAG_VIOLATION] = exceptions_a[   TAG_VIOLATION];
+          exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[  SEAL_VIOLATION];
+          exceptions_a_o[LENGTH_VIOLATION] = exceptions_a[LENGTH_VIOLATION]
+                                           | alu_result_i > a_getTop_o;
+
+          if (Verbosity) begin
+            $display("csetboundsimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
+          end
+        end
+
+        default: begin
+          //$display("something went wrong in the ibex_alu");
+        end
+      endcase
+    end
   end
 
 

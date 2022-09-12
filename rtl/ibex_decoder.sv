@@ -85,6 +85,7 @@ module ibex_decoder #(
   output ibex_pkg::cheri_base_opcode_e    cheri_base_opcode_o,
   output ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_o,
   output ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_o,
+  output logic                            cheri_alu_exc_only_o,
 
   // whether we're in capability mode or not
   input logic                             cap_mode_i,
@@ -895,6 +896,7 @@ module ibex_decoder #(
     cheri_base_opcode_o    = cheri_base_opcode;
     cheri_threeop_opcode_o = cheri_threeop_opcode;
     cheri_s_a_d_opcode_o   = cheri_s_a_d_opcode;
+    cheri_alu_exc_only_o   = 1'b0;
 
     scr_access_o          = 1'b0;
     scr_op_o              = SCR_NONE;
@@ -917,6 +919,9 @@ module ibex_decoder #(
           bt_b_mux_sel_o = IMM_B_J;
         end
 
+        // to check for exceptions
+        cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+
         // Jumps take two cycles without the BTALU
         if (instr_first_cycle_i && !BranchTargetALU) begin
           // Calculate jump target
@@ -924,12 +929,18 @@ module ibex_decoder #(
           alu_op_b_mux_sel_o  = OP_B_IMM;
           imm_b_mux_sel_o     = IMM_B_J;
           alu_operator_o      = ALU_ADD;
+          // to check for exceptions
+          cheri_alu_exc_only_o = 1'b1;
         end else begin
           // Calculate and store PC+4
           alu_op_a_mux_sel_o  = OP_A_CURRPC;
           alu_op_b_mux_sel_o  = OP_B_IMM;
           imm_b_mux_sel_o     = IMM_B_INCR_PC;
           alu_operator_o      = ALU_ADD;
+          // to check for exceptions, only if there is a branch target ALU
+          // (otherwise the check would have already been performed in the
+          // first cycle)
+          cheri_alu_exc_only_o = BranchTargetALU;
         end
       end
 
@@ -939,6 +950,9 @@ module ibex_decoder #(
           bt_b_mux_sel_o = IMM_B_I;
         end
 
+        // to check for exceptions
+        cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+
         // Jumps take two cycles without the BTALU
         if (instr_first_cycle_i && !BranchTargetALU) begin
           // Calculate jump target
@@ -946,12 +960,16 @@ module ibex_decoder #(
           alu_op_b_mux_sel_o  = OP_B_IMM;
           imm_b_mux_sel_o     = IMM_B_I;
           alu_operator_o      = ALU_ADD;
+          // to check for exceptions
+          cheri_alu_exc_only_o = 1'b1;
         end else begin
           // Calculate and store PC+4
           alu_op_a_mux_sel_o  = OP_A_CURRPC;
           alu_op_b_mux_sel_o  = OP_B_IMM;
           imm_b_mux_sel_o     = IMM_B_INCR_PC;
           alu_operator_o      = ALU_ADD;
+          // to check for exceptions when there is a BTALU
+          cheri_alu_exc_only_o = BranchTargetALU;
         end
       end
 
@@ -967,6 +985,9 @@ module ibex_decoder #(
           default: ;
         endcase
 
+        // to check for exceptions
+        cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+
         if (BranchTargetALU) begin
           bt_a_mux_sel_o = OP_A_CURRPC;
           // Not-taken branch will jump to next instruction (used in secure mode)
@@ -979,6 +1000,9 @@ module ibex_decoder #(
           // First evaluate the branch condition
           alu_op_a_mux_sel_o  = OP_A_REG_A;
           alu_op_b_mux_sel_o  = OP_B_REG_B;
+          // to check for exceptions
+          // branch target is only available in the first cycle with BTALU enabled
+          cheri_alu_exc_only_o = BranchTargetALU;
         end else if (!BranchTargetALU) begin
           // Then calculate jump target
           alu_op_a_mux_sel_o  = OP_A_CURRPC;
@@ -986,6 +1010,8 @@ module ibex_decoder #(
           // Not-taken branch will jump to next instruction (used in secure mode)
           imm_b_mux_sel_o     = branch_taken_i ? IMM_B_B : IMM_B_INCR_PC;
           alu_operator_o      = ALU_ADD;
+          // to check for exceptions when BTALU is disabled
+          cheri_alu_exc_only_o = 1'b1;
         end
       end
 

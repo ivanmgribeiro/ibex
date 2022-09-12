@@ -98,6 +98,7 @@ module ibex_id_stage #(
   output ibex_pkg::cheri_base_opcode_e    cheri_base_opcode_o,
   output ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_o,
   output ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_o,
+  output logic                            cheri_alu_exc_only_o,
 
   // CHERI operands
   output [CheriCapWidth-1:0]        cheri_operand_a_o,
@@ -608,6 +609,7 @@ module ibex_id_stage #(
     .cheri_base_opcode_o   (cheri_base_opcode_o),
     .cheri_threeop_opcode_o(cheri_threeop_opcode_o),
     .cheri_s_a_d_opcode_o  (cheri_s_a_d_opcode_o),
+    .cheri_alu_exc_only_o  (cheri_alu_exc_only_o),
 
     .cap_mode_i(),
 
@@ -736,6 +738,7 @@ module ibex_id_stage #(
 
     // CHERI exceptions
     .cheri_en_i             (cheri_en_o),
+    .cheri_alu_exc_only_i   (cheri_alu_exc_only_o),
     .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
     .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
     .cheri_exceptions_lsu_i (cheri_exceptions_lsu_i),

@@ -67,6 +67,7 @@ module ibex_controller #(
 
   // CHERI exception signals
   input  logic                               cheri_en_i,
+  input  logic                               cheri_alu_exc_only_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_lsu_i,
@@ -222,7 +223,8 @@ module ibex_controller #(
 
   // Signals from decode don't take into account whether the instruction is
   // valid or not, so filter it here
-  assign cheri_exc = cheri_en_i & instr_valid_i & (|cheri_exceptions_a_ex_i | |cheri_exceptions_b_ex_i);
+  assign cheri_exc = (cheri_en_i | cheri_alu_exc_only_i) & instr_valid_i
+                   & (|cheri_exceptions_a_ex_i | |cheri_exceptions_b_ex_i);
 
   // exception requests
   // requests are flopped in exc_req_q.  This is cleared when controller is in

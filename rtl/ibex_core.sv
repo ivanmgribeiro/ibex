@@ -293,6 +293,7 @@ module ibex_core import ibex_pkg::*; #(
   cheri_base_opcode_e    cheri_base_opcode;
   cheri_threeop_funct7_e cheri_threeop_opcode;
   cheri_s_a_d_funct5_e   cheri_s_a_d_opcode;
+  logic                  cheri_alu_exc_only;
 
   // CHERI operands
   logic [CheriCapWidth-1:0] cheri_operand_a_ex;
@@ -646,6 +647,7 @@ module ibex_core import ibex_pkg::*; #(
     .cheri_base_opcode_o     (cheri_base_opcode),
     .cheri_threeop_opcode_o  (cheri_threeop_opcode),
     .cheri_s_a_d_opcode_o    (cheri_s_a_d_opcode),
+    .cheri_alu_exc_only_o    (cheri_alu_exc_only),
 
     // CHERI operands
     .cheri_operand_a_o       (cheri_operand_a_ex),
@@ -810,6 +812,7 @@ module ibex_core import ibex_pkg::*; #(
     .cheri_base_opcode_i    (cheri_base_opcode),
     .cheri_threeop_opcode_i (cheri_threeop_opcode),
     .cheri_s_a_d_opcode_i   (cheri_s_a_d_opcode),
+    .cheri_alu_exc_only_i   (cheri_alu_exc_only),
 
     .cheri_operand_a_i      (cheri_operand_a_ex),
     .cheri_operand_b_i      (cheri_operand_b_ex),

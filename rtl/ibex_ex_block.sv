@@ -51,6 +51,7 @@ module ibex_ex_block #(
   input ibex_pkg::cheri_base_opcode_e    cheri_base_opcode_i,
   input ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_i,
   input ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_i,
+  input logic                            cheri_alu_exc_only_i,
 
   input logic [CheriCapWidth-1:0] cheri_operand_a_i,
   input logic [CheriCapWidth-1:0] cheri_operand_b_i,
@@ -251,6 +252,7 @@ module ibex_ex_block #(
     .base_opcode_i    (cheri_base_opcode_i),
     .threeop_opcode_i (cheri_threeop_opcode_i),
     .s_a_d_opcode_i   (cheri_s_a_d_opcode_i),
+    .exc_only_i       (cheri_alu_exc_only_i),
     .instr_first_cycle_i(alu_instr_first_cycle_i),
 
     .operand_a_i   (cheri_operand_a_i),
@@ -261,6 +263,7 @@ module ibex_ex_block #(
     .alu_operand_b_o(cheri_int_alu_operand_b),
     .alu_operator_o (cheri_int_alu_operator),
     .alu_result_i   (alu_adder_result_ext[33:1]),
+    .btalu_result_i (branch_target),
 
     .result_o  (cheri_result_o),
     .wrote_capability(cheri_wrote_capability),
