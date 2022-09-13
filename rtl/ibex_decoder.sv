@@ -729,15 +729,10 @@ module ibex_decoder #(
                 rf_we = 1'b1;
               end
               C_INVOKE: begin
-                jump_in_dec_o = 1'b1;
-                if (~instr_first_cycle_i) begin
-                  overwrite_rf_waddr = 1'b1;
-                  jump_set_o = 1'b1;
-                  rf_we = 1'b0;
-                end else begin
-                  jump_set_o = 1'b0;
-                  rf_we = 1'b1;
-                end
+                jump_in_dec_o      = 1'b1;
+                overwrite_rf_waddr = 1'b1;
+                jump_set_o         =  instr_first_cycle_i;
+                rf_we              = ~instr_first_cycle_i;
               end
               C_SPECIAL_RW: begin
                 if ((rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) // writing to PCC is illegal

@@ -577,11 +577,13 @@ module ibex_cheri_alu #(
             C_INVOKE: begin
               logic [IntWidth-1:0] new_addr = {a_getAddr_o[IntWidth-1:1], 1'b0};
               // first cycle operations (unseal capability a and clear lowest bit)
+              // capability a is the new PCC
               a_setAddr_i = new_addr;
               a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0]; // discard "exact" bit
               a_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability a
 
               // second cycle operations (unseal capability b)
+              // capability b is the data capability to be placed in register 31
               b_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability b
 
               wrote_capability = 1'b1;
