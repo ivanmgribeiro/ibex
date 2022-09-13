@@ -775,6 +775,10 @@ module ibex_id_stage #(
     .cheri_exc_cause_o  (cheri_exc_cause_o),
     .cheri_exc_reg_sel_o(cheri_exc_reg_sel_o),
 
+    .rf_raddr_a_i       (rf_raddr_a_o),
+    .rf_raddr_b_i       (rf_raddr_b_o),
+    .scr_addr_i         (scr_num_e'(cheri_operand_b_o[11:0])),
+
     // Debug Signal
     .debug_mode_o       (debug_mode_o),
     .debug_cause_o      (debug_cause_o),

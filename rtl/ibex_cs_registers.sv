@@ -916,15 +916,6 @@ module ibex_cs_registers #(
                            : 6'h0;
             mccsr_d[9:5]   = cheri_exc_cause_i;
             mccsr_d[4:0]   = 5'h0;
-
-            // Saving exception information in MTVAL is standard
-            mtval_en = 1'b1;
-            mtval_d[10:5] = cheri_exc_reg_sel_i == REG_A   ? {1'b0, reg_addr_a_i}
-                          : cheri_exc_reg_sel_i == REG_B   ? {1'b0, reg_addr_b_i}
-                          : cheri_exc_reg_sel_i == REG_SCR ? {1'b1, scr_addr_i}
-                          : cheri_exc_reg_sel_i == REG_PCC ? {1'b1, 5'h0}
-                          : 6'h0;
-            mtval_d[4:0]  = cheri_exc_cause_i;
           end
         end
       end // csr_save_cause_i
