@@ -799,13 +799,16 @@ module ibex_decoder #(
                   2'b01: data_type_o = 2'b01; // lh(u)
                   2'b10: begin
                     data_type_o = 2'b00;      // lw
-                    if (instr[14]) begin
+                    if (instr[22]) begin
                       illegal_insn = 1'b1;    // lwu does not exist
                     end
                   end
                   2'b11: begin
                     data_type_o      = 2'b11; // load double
                     mem_cap_access_o = 1'b1;
+                    if (instr[22]) begin
+                      illegal_insn = 1'b1; // ldu does not exist
+                    end
                   end
                 endcase
 
