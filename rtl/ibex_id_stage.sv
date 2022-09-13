@@ -114,6 +114,10 @@ module ibex_id_stage #(
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_b_ex_i,
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_lsu_i,
 
+  // CHERI exception cause
+  output ibex_pkg::c_exc_cause_e       cheri_exc_cause_o,
+  output ibex_pkg::c_exc_reg_mux_sel_e cheri_exc_reg_sel_o,
+
   // CSR
   output logic                      csr_access_o,
   output ibex_pkg::csr_op_e         csr_op_o,
@@ -767,6 +771,9 @@ module ibex_id_stage #(
     .csr_save_cause_o     (csr_save_cause_o),
     .csr_mtval_o          (csr_mtval_o),
     .priv_mode_i          (priv_mode_i),
+
+    .cheri_exc_cause_o  (cheri_exc_cause_o),
+    .cheri_exc_reg_sel_o(cheri_exc_reg_sel_o),
 
     // Debug Signal
     .debug_mode_o       (debug_mode_o),

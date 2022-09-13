@@ -310,6 +310,9 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriExcWidth-1:0] cheri_exceptions_instr;
   logic                     instr_upper_exc;
 
+  c_exc_cause_e       cheri_exc_cause;
+  c_exc_reg_mux_sel_e cheri_exc_reg_sel;
+
   // CSR control
   logic        csr_access;
   csr_op_e     csr_op;
@@ -662,6 +665,9 @@ module ibex_core import ibex_pkg::*; #(
     .cheri_exceptions_a_ex_i (cheri_exceptions_a_ex),
     .cheri_exceptions_b_ex_i (cheri_exceptions_b_ex),
     .cheri_exceptions_lsu_i  (cheri_exceptions_lsu),
+
+    .cheri_exc_cause_o       (cheri_exc_cause),
+    .cheri_exc_reg_sel_o     (cheri_exc_reg_sel),
 
     // CSR ID/EX
     .csr_access_o         (csr_access),
@@ -1252,6 +1258,12 @@ module ibex_core import ibex_pkg::*; #(
     .csr_mcause_i      (exc_cause),
     .csr_mtval_i       (csr_mtval),
     .illegal_csr_insn_o(illegal_csr_insn_id),
+
+    // CHERI exception cause
+    .cheri_exc_cause_i  (cheri_exc_cause),
+    .cheri_exc_reg_sel_i(cheri_exc_reg_sel),
+    .reg_addr_a_i       (rf_raddr_a_o),
+    .reg_addr_b_i       (rf_raddr_b_o),
 
     .double_fault_seen_o,
 

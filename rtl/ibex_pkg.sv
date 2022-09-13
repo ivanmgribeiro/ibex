@@ -527,6 +527,43 @@ package ibex_pkg;
     DBG_CAUSE_STEP    = 3'h4
   } dbg_cause_e;
 
+  // CHERI cause
+  typedef enum logic [4:0] {
+    CAUSE_NONE                                     = 5'h00,
+    CAUSE_LENGTH_VIOLATION                         = 5'h01,
+    CAUSE_TAG_VIOLATION                            = 5'h02,
+    CAUSE_SEAL_VIOLATION                           = 5'h03,
+    CAUSE_TYPE_VIOLATION                           = 5'h04,
+    // 'h05...'h07 reserved
+    CAUSE_SOFTWARE_DEFINED_PERMISSION_VIOLATION    = 5'h08,
+    // 'h09 deprecated in RISC-V
+    CAUSE_REPRESENTABILITY_VIOLATION               = 5'h0A,
+    CAUSE_UNALIGNED_BASE                           = 5'h0B,
+    // 'h0C..'h0F reserved
+    CAUSE_GLOBAL_VIOLATION                         = 5'h10,
+    CAUSE_PERMIT_EXECUTE_VIOLATION                 = 5'h11,
+    CAUSE_PERMIT_LOAD_VIOLATION                    = 5'h12,
+    CAUSE_PERMIT_STORE_VIOLATION                   = 5'h13,
+    CAUSE_PERMIT_LOAD_CAPABILITY_VIOLATION         = 5'h14,
+    CAUSE_PERMIT_STORE_CAPABILITY_VIOLATION        = 5'h15,
+    CAUSE_PERMIT_STORE_LOCAL_CAPABILITY_VIOLATION  = 5'h16,
+    CAUSE_PERMIT_SEAL_VIOLATION                    = 5'h17,
+    CAUSE_PERMIT_ACCESS_SYSTEM_REGISTERS_VIOLATION = 5'h18,
+    CAUSE_PERMIT_CINVOKE_VIOLATION                 = 5'h19,
+    CAUSE_PERMIT_ACCESS_CINVOKE_IDC_VIOLATION      = 5'h1A,
+    CAUSE_PERMIT_UNSEAL_VIOLATION                  = 5'h1B,
+    CAUSE_PERMIT_SET_CID_VIOLATION                 = 5'h1C
+    // 'h1C..'h1F reserved
+  } c_exc_cause_e;
+
+  // Which register caused the CHERI exception
+  typedef enum logic [2:0] {
+    REG_A,
+    REG_B,
+    REG_SCR,
+    REG_PCC
+  } c_exc_reg_mux_sel_e;
+
   // ICache constants
   parameter int unsigned ADDR_W           = 32;
   parameter int unsigned BUS_SIZE         = 32;

@@ -125,6 +125,12 @@ module ibex_cs_registers #(
   output logic                 illegal_csr_insn_o,     // access to non-existent CSR,
                                                         // with wrong priviledge level, or
                                                         // missing write permissions
+  // CHERI exception cause
+  input  ibex_pkg::c_exc_cause_e       cheri_exc_cause_i,
+  input  ibex_pkg::c_exc_reg_mux_sel_e cheri_exc_reg_sel_i,
+  input  logic [4:0]                   reg_addr_a_i,
+  input  logic [4:0]                   reg_addr_b_i,
+
   output logic                 double_fault_seen_o,
   // Performance Counters
   input  logic                 instr_ret_i,                 // instr retired in ID/EX stage
@@ -277,6 +283,8 @@ module ibex_cs_registers #(
   logic [31:0] dscratch0_q;
   logic [31:0] dscratch1_q;
   logic        dscratch0_en, dscratch1_en;
+  logic [31:0] mccsr_q, mccsr_d;
+  logic        mccsr_en;
 
   // CSRs for recoverable NMIs
   // NOTE: these CSRS are nonstandard, see https://github.com/riscv/riscv-isa-manual/issues/261
@@ -426,6 +434,8 @@ module ibex_cs_registers #(
       CSR_MCAUSE: csr_rdata_int = {mcause_q.irq_ext | mcause_q.irq_int,
                                    mcause_q.irq_int ? {26{1'b1}} : 26'b0,
                                    mcause_q.lower_cause[4:0]};
+
+      CSR_MCCSR: csr_rdata_int = mccsr_q;
 
       // mtval: trap value
       CSR_MTVAL: csr_rdata_int = mtval_q;
@@ -620,6 +630,8 @@ module ibex_cs_registers #(
     depc_en      = 1'b0;
     dscratch0_en = 1'b0;
     dscratch1_en = 1'b0;
+    mccsr_en     = 1'b0;
+    mccsr_d      = csr_wdata_int;
 
     mstack_en      = 1'b0;
     mstack_d.mpie  = mstatus_q.mpie;
@@ -720,6 +732,8 @@ module ibex_cs_registers #(
 
         CSR_DSCRATCH0: dscratch0_en = 1'b1;
         CSR_DSCRATCH1: dscratch1_en = 1'b1;
+
+        CSR_MCCSR: mccsr_en = 1'b1;
 
         // machine counter/timers
         CSR_MCOUNTINHIBIT: mcountinhibit_we = 1'b1;
@@ -887,6 +901,30 @@ module ibex_cs_registers #(
               double_fault_seen_o         = 1'b1;
               cpuctrl_d.double_fault_seen = 1'b1;
             end
+          end
+
+          if (csr_mcause_i == ExcCauseCheri) begin
+            // save CHERI exception information
+            // Saving information in MCCSR is deprecated in the CHERI
+            // specification but some software still relies on it
+            mccsr_en = 1'b1;
+            mccsr_d[31:16] = 16'h0;
+            mccsr_d[15:10] = cheri_exc_reg_sel_i == REG_A   ? {1'b0, reg_addr_a_i}
+                           : cheri_exc_reg_sel_i == REG_B   ? {1'b0, reg_addr_b_i}
+                           : cheri_exc_reg_sel_i == REG_SCR ? {1'b1, scr_addr_i}
+                           : cheri_exc_reg_sel_i == REG_PCC ? {1'b1, 5'h0}
+                           : 6'h0;
+            mccsr_d[9:5]   = cheri_exc_cause_i;
+            mccsr_d[4:0]   = 5'h0;
+
+            // Saving exception information in MTVAL is standard
+            mtval_en = 1'b1;
+            mtval_d[10:5] = cheri_exc_reg_sel_i == REG_A   ? {1'b0, reg_addr_a_i}
+                          : cheri_exc_reg_sel_i == REG_B   ? {1'b0, reg_addr_b_i}
+                          : cheri_exc_reg_sel_i == REG_SCR ? {1'b1, scr_addr_i}
+                          : cheri_exc_reg_sel_i == REG_PCC ? {1'b1, 5'h0}
+                          : 6'h0;
+            mtval_d[4:0]  = cheri_exc_cause_i;
           end
         end
       end // csr_save_cause_i
@@ -1260,6 +1298,20 @@ module ibex_cs_registers #(
     .wr_data_i (scr_mscratchc_d),
     .wr_en_i   (scr_mscratchc_en),
     .rd_data_o (scr_mscratchc_q),
+    .rd_error_o()
+  );
+
+  // MCCSR
+  ibex_csr #(
+    .Width(32),
+    .ShadowCopy(1'b0),
+    .ResetValue('0)
+  ) u_csr_mccsr (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (mccsr_d),
+    .wr_en_i   (mccsr_en),
+    .rd_data_o (mccsr_q),
     .rd_error_o()
   );
 
