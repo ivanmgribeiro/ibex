@@ -663,8 +663,10 @@ module ibex_decoder #(
               // debugger trap
               ebrk_insn_o = 1'b1;
 
-            12'h302:  // mret
-              mret_insn_o = 1'b1;
+            12'h302: begin  // mret
+              mret_insn_o       = 1'b1;
+              cheri_check_asr_o = 1'b1;
+            end
 
             12'h7b2:  // dret
               dret_insn_o = 1'b1;
@@ -685,6 +687,8 @@ module ibex_decoder #(
           csr_access_o     = 1'b1;
           rf_wdata_sel_o   = RF_WD_CSR;
           rf_we            = 1'b1;
+
+          cheri_check_asr_o = 1'b1;
 
           if (~instr[14]) begin
             rf_ren_a_o         = 1'b1;
@@ -753,7 +757,7 @@ module ibex_decoder #(
                    ) begin
                   rf_we = 1'b1;
                   // check AccessSystemRegisters when not accessing PCC
-                  cheri_check_asr_o = rf_raddr_b_o != SCR_PCC;
+                  cheri_check_asr_o = rf_raddr_b_o != SCR_PCC & rf_raddr_b_o != SCR_DDC;
                 end else begin
                   illegal_insn = 1'b1;
                 end

@@ -740,6 +740,7 @@ module ibex_id_stage #(
     // CHERI exceptions
     .cheri_en_i             (cheri_en_o),
     .cheri_alu_exc_only_i   (cheri_alu_exc_only_o),
+    .cheri_check_asr_i      (cheri_check_asr),
     .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
     .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
     .cheri_exceptions_lsu_i (cheri_exceptions_lsu_i),
