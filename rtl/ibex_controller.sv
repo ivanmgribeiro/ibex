@@ -292,7 +292,9 @@ module ibex_controller #(
       // Note that with the writeback stage store/load errors occur on the instruction in writeback,
       // all other exception/faults occur on the instruction in ID/EX. The faults from writeback
       // must take priority as that instruction is architecurally ordered before the one in ID/EX.
-      if (store_err_q) begin
+      if (cheri_lsu_err_q) begin
+        cheri_lsu_err_prio = 1'b1;
+      end else if (store_err_q) begin
         store_err_prio = 1'b1;
       end else if (store_misalign_err_q) begin
         store_misalign_err_prio = 1'b1;
@@ -308,8 +310,6 @@ module ibex_controller #(
         ecall_insn_prio = 1'b1;
       end else if (ebrk_insn) begin
         ebrk_insn_prio = 1'b1;
-      end else if (cheri_lsu_err_q) begin
-        cheri_lsu_err_prio = 1'b1;
       end else if (cheri_err_q) begin
         cheri_err_prio = 1'b1;
       end
@@ -341,6 +341,8 @@ module ibex_controller #(
         ecall_insn_prio = 1'b1;
       end else if (ebrk_insn) begin
         ebrk_insn_prio = 1'b1;
+      end else if (cheri_lsu_err_q) begin
+        cheri_lsu_err_prio = 1'b1;
       end else if (store_err_q) begin
         store_err_prio = 1'b1;
       end else if (store_misalign_err_q) begin
@@ -349,8 +351,6 @@ module ibex_controller #(
         load_err_prio  = 1'b1;
       end else if (load_misalign_err_q) begin
         load_misalign_err_prio = 1'b1;
-      end else if (cheri_lsu_err_q) begin
-        cheri_lsu_err_prio = 1'b1;
       end else if (cheri_err_q) begin
         cheri_err_prio = 1'b1;
       end
