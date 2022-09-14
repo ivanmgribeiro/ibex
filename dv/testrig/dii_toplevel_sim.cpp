@@ -56,8 +56,8 @@ double sc_time_stamp() {
     return main_time;
 }
 
-const int memory_base = 0x80000000;
-const int memory_size =   0x800000;
+const uint64_t memory_base = 0x80000000;
+const uint64_t memory_size =   0x800000;
 
 int main(int argc, char** argv, char** env) {
     if (argc != 3) {
@@ -113,7 +113,8 @@ int main(int argc, char** argv, char** env) {
     int instr_addr_prev = 0;
 
     uint8_t *memory = (uint8_t *) malloc(memory_size);
-    if (!memory) {
+    uint8_t *tags   = (uint8_t *) malloc(memory_size/4);
+    if (!memory || !tags) {
         std::cout << "malloc didn't work" << std::endl;
     }
 
@@ -230,6 +231,9 @@ int main(int argc, char** argv, char** env) {
                 for (int i = 0; i < memory_size; i++) {
                     memory[i] = 0;
                 }
+                for (int i = 0; i < memory_size/4; i++) {
+                    tags[i] = 0;
+                }
 
                 continue;
             }
@@ -325,10 +329,10 @@ int main(int argc, char** argv, char** env) {
             // has reached a delay of 0
             if (mem_accesses.size() > 0 && mem_accesses[0].delay == 0) {
                 top->data_rvalid_i = 1;
-                int data_addr_prev  = mem_accesses[0].addr;
-                int data_be_prev    = mem_accesses[0].be;
-                int data_we_prev    = mem_accesses[0].write ? 1 : 0;
-                int data_wdata_prev = mem_accesses[0].data;
+                uint64_t data_addr_prev  = mem_accesses[0].addr;
+                uint64_t data_be_prev    = mem_accesses[0].be;
+                uint64_t data_we_prev    = mem_accesses[0].write ? 1 : 0;
+                uint64_t data_wdata_prev = mem_accesses[0].data;
                 bool addr_out_of_range = data_addr_prev < memory_base
                                          || data_addr_prev >= memory_base + memory_size;
                 int int_mem_addr = data_addr_prev - memory_base;
@@ -347,22 +351,31 @@ int main(int argc, char** argv, char** env) {
                                 memory[int_mem_addr + i] = (uint8_t) (data_wdata_prev >> (i*8));
                             }
                         }
+                        if (data_be_prev == 0xf) {
+                            tags[int_mem_addr/4] = (uint8_t) (data_wdata_prev >> 32);
+                        } else {
+                            tags[int_mem_addr/4] = 0;
+                        }
                         if (verbosity > 0) {
                             std::cout << "store addr: " << std::hex << data_addr_prev
+                                      << " data_wdata_prev: " << std::hex << data_wdata_prev
+                                      << " data_be_prev: " << std::hex << data_be_prev
                                       << " memory values:"
                                       << " " << std::hex << (int) memory[int_mem_addr]
                                       << " " << std::hex << (int) memory[int_mem_addr + 1]
                                       << " " << std::hex << (int) memory[int_mem_addr + 2]
                                       << " " << std::hex << (int) memory[int_mem_addr + 3]
+                                      << " tag: " << std::hex << (int) tags[int_mem_addr/4]
                                       << std::endl;
                         }
                     } else {
                         // read
                         // ignore byte-enable for now
-                        uint32_t val = 0;
+                        uint64_t val = 0;
                         for (int i = 0; i < 4; i++) {
                             val |= ((uint32_t) memory[int_mem_addr + i]) << (8*i);
                         }
+                        val |= ((uint64_t) tags[int_mem_addr/4]) << 32;
                         //uint32_t val = memory[int_mem_addr]
                         //             | memory[int_mem_addr+1] << 8
                         //             | memory[int_mem_addr+2] << 16
