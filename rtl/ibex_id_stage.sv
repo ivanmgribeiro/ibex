@@ -616,7 +616,8 @@ module ibex_id_stage #(
     .cheri_alu_exc_only_o  (cheri_alu_exc_only_o),
     .cheri_check_asr_o     (cheri_check_asr),
 
-    .cap_mode_i(pcc_getFlags_o),
+    .cap_mode_i (pcc_getFlags_o),
+    .priv_mode_i(priv_mode_i),
 
     .add_auth_addr_o(lsu_add_auth_addr_o),
 

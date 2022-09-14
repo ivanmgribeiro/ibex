@@ -91,6 +91,9 @@ module ibex_decoder #(
   // whether we're in capability mode or not
   input logic                             cap_mode_i,
 
+  // current privilege mode
+  input ibex_pkg::priv_lvl_e              priv_mode_i,
+
   // whether the offset for this memory access should be relative to the
   // capability base or the capability address
   // for DDC-relative CHERI-added (non-RISC-V) loads and stores, we need to
@@ -741,22 +744,27 @@ module ibex_decoder #(
               C_SPECIAL_RW: begin
                 if ((rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) // writing to PCC is illegal
                    |(rf_raddr_b_o == SCR_DDC                    )
-                   |(rf_raddr_b_o == SCR_MTCC                   ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MTDC                   ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MSCRATCHC              ) // Machine mode
-                   |(rf_raddr_b_o == SCR_MEPCC                  ) // Machine mode
-                   //|(rf_raddr_b_o == SCR_STCC                   ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_STDC                   ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_SSCRATCHC              ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_SEPCC                  ) // Supervisor mode
-                   //|(rf_raddr_b_o == SCR_UTCC                   ) // User mode
-                   //|(rf_raddr_b_o == SCR_UTDC                   ) // User mode
-                   //|(rf_raddr_b_o == SCR_USCRATCHC              ) // User mode
-                   //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
                    ) begin
                   rf_we = 1'b1;
-                  // check AccessSystemRegisters when not accessing PCC
-                  cheri_check_asr_o = rf_raddr_b_o != SCR_PCC & rf_raddr_b_o != SCR_DDC;
+                end else if ((rf_raddr_b_o == SCR_MTCC     ) // Machine mode
+                            |(rf_raddr_b_o == SCR_MTDC     ) // Machine mode
+                            |(rf_raddr_b_o == SCR_MSCRATCHC) // Machine mode
+                            |(rf_raddr_b_o == SCR_MEPCC    ) // Machine mode
+                            //|(rf_raddr_b_o == SCR_STCC                   ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_STDC                   ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_SSCRATCHC              ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_SEPCC                  ) // Supervisor mode
+                            //|(rf_raddr_b_o == SCR_UTCC                   ) // User mode
+                            //|(rf_raddr_b_o == SCR_UTDC                   ) // User mode
+                            //|(rf_raddr_b_o == SCR_USCRATCHC              ) // User mode
+                            //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
+                            ) begin
+                  if (priv_mode_i != PRIV_LVL_M) begin
+                    illegal_insn = 1'b1;
+                  end else begin
+                    rf_we = 1'b1;
+                    cheri_check_asr_o = 1'b1;
+                  end
                 end else begin
                   illegal_insn = 1'b1;
                 end
