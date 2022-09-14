@@ -477,6 +477,9 @@ module ibex_id_stage #(
       CHERI_IMM_B_S:       cheri_imm_b = imm_s_type;
       CHERI_IMM_B_U:       cheri_imm_b = imm_u_type;
       CHERI_IMM_B_RS2:     cheri_imm_b = {{27{1'b0}}, rf_raddr_b_o};
+      CHERI_IMM_B_ZERO:    cheri_imm_b = '0;
+      CHERI_IMM_B_TWO:     cheri_imm_b = 'h2;
+      CHERI_IMM_B_J:       cheri_imm_b = imm_j_type;
       default:             cheri_imm_b = 'X;
     endcase
   end

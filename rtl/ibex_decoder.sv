@@ -298,6 +298,11 @@ module ibex_decoder #(
       OPCODE_JAL: begin   // Jump and Link
         jump_in_dec_o      = 1'b1;
 
+        if (cap_mode_i) begin
+          // this becomes a CJALR with an immediate
+          rf_wdata_sel_o = RF_WD_CHERI;
+        end
+
         if (instr_first_cycle_i) begin
           // Calculate jump target (and store PC + 4 if BranchTargetALU is configured)
           rf_we            = BranchTargetALU;
@@ -310,6 +315,11 @@ module ibex_decoder #(
 
       OPCODE_JALR: begin  // Jump and Link Register
         jump_in_dec_o      = 1'b1;
+
+        if (cap_mode_i) begin
+          // this becomes a CJALR with an immediate
+          rf_wdata_sel_o = RF_WD_CHERI;
+        end
 
         if (instr_first_cycle_i) begin
           // Calculate jump target (and store PC + 4 if BranchTargetALU is configured)
@@ -937,8 +947,29 @@ module ibex_decoder #(
           bt_b_mux_sel_o = IMM_B_J;
         end
 
-        // to check for exceptions
-        cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+        if (cap_mode_i) begin
+          // this becomes a CJALR with an immediate
+          cheri_en_o = 1'b1;
+          cheri_base_opcode_o = THREE_OP;
+          cheri_threeop_opcode_o = SOURCE_AND_DEST;
+          cheri_s_a_d_opcode_o = C_JALR;
+
+          // no attempt at BTALU compatibility here
+          if (instr_first_cycle_i) begin
+            cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+            cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+            cheri_imm_b_mux_sel_o = CHERI_IMM_B_J;
+          end else begin
+            cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+            cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+            cheri_imm_b_mux_sel_o = CHERI_IMM_B_INCR_PC;
+          end
+        end else begin
+          // to check for exceptions
+          cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+          cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+          cheri_imm_b_mux_sel_o = CHERI_IMM_B_TWO;
+        end
 
         // Jumps take two cycles without the BTALU
         if (instr_first_cycle_i && !BranchTargetALU) begin
@@ -948,7 +979,7 @@ module ibex_decoder #(
           imm_b_mux_sel_o     = IMM_B_J;
           alu_operator_o      = ALU_ADD;
           // to check for exceptions
-          cheri_alu_exc_only_o = 1'b1;
+          cheri_alu_exc_only_o = ~cap_mode_i;
         end else begin
           // Calculate and store PC+4
           alu_op_a_mux_sel_o  = OP_A_CURRPC;
@@ -958,7 +989,7 @@ module ibex_decoder #(
           // to check for exceptions, only if there is a branch target ALU
           // (otherwise the check would have already been performed in the
           // first cycle)
-          cheri_alu_exc_only_o = BranchTargetALU;
+          cheri_alu_exc_only_o = ~cap_mode_i & BranchTargetALU;
         end
       end
 
@@ -968,8 +999,29 @@ module ibex_decoder #(
           bt_b_mux_sel_o = IMM_B_I;
         end
 
-        // to check for exceptions
-        cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+        if (cap_mode_i) begin
+          // this becomes a CJALR with an immediate
+          cheri_en_o = 1'b1;
+          cheri_base_opcode_o = THREE_OP;
+          cheri_threeop_opcode_o = SOURCE_AND_DEST;
+          cheri_s_a_d_opcode_o = C_JALR;
+
+          // no attempt at BTALU compatibility here
+          if (instr_first_cycle_i) begin
+            cheri_op_a_mux_sel_o = CHERI_OP_A_REG_CAP;
+            cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+            cheri_imm_b_mux_sel_o = CHERI_IMM_B_I;
+          end else begin
+            cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+            cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+            cheri_imm_b_mux_sel_o = CHERI_IMM_B_INCR_PC;
+          end
+        end else begin
+          // to check for exceptions
+          cheri_op_a_mux_sel_o = CHERI_OP_A_PCC;
+          cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+          cheri_imm_b_mux_sel_o = CHERI_IMM_B_TWO;
+        end
 
         // Jumps take two cycles without the BTALU
         if (instr_first_cycle_i && !BranchTargetALU) begin
@@ -979,7 +1031,7 @@ module ibex_decoder #(
           imm_b_mux_sel_o     = IMM_B_I;
           alu_operator_o      = ALU_ADD;
           // to check for exceptions
-          cheri_alu_exc_only_o = 1'b1;
+          cheri_alu_exc_only_o = ~cap_mode_i;
         end else begin
           // Calculate and store PC+4
           alu_op_a_mux_sel_o  = OP_A_CURRPC;
@@ -987,7 +1039,7 @@ module ibex_decoder #(
           imm_b_mux_sel_o     = IMM_B_INCR_PC;
           alu_operator_o      = ALU_ADD;
           // to check for exceptions when there is a BTALU
-          cheri_alu_exc_only_o = BranchTargetALU;
+          cheri_alu_exc_only_o = ~cap_mode_i & BranchTargetALU;
         end
       end
 
@@ -1561,7 +1613,8 @@ module ibex_decoder #(
                       // there is nothing to actually calculate but we need to
                       // perform exception checks
                       cheri_op_a_mux_sel_o = CHERI_OP_A_REG_CAP;
-                      cheri_op_b_mux_sel_o = CHERI_OP_B_PCC;
+                      cheri_op_b_mux_sel_o = CHERI_OP_B_IMM;
+                      cheri_imm_b_mux_sel_o = CHERI_IMM_B_ZERO;
                     end else begin
                       // Calculate and store PCC+4
                       cheri_op_a_mux_sel_o  = CHERI_OP_A_PCC;

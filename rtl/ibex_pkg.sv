@@ -419,7 +419,10 @@ package ibex_pkg;
     CHERI_IMM_B_S,
     CHERI_IMM_B_U,
     CHERI_IMM_B_INCR_PC,
-    CHERI_IMM_B_RS2
+    CHERI_IMM_B_RS2,
+    CHERI_IMM_B_ZERO,
+    CHERI_IMM_B_TWO,
+    CHERI_IMM_B_J
   } c_imm_b_sel_e;
 
   // Regfile write data selection

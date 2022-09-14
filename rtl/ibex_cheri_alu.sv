@@ -722,13 +722,13 @@ module ibex_cheri_alu #(
                   // in the decoder. However, ibex already does it this way.
 
                   if (instr_first_cycle_i) begin
-                    // for exception checking
-                    alu_operand_a_o = {a_getAddr_o[IntWidth-1:1], 1'b0};
-                    alu_operand_b_o = 2; // The minimum instruction size in bytes
+                    // calculate the target address
+                    alu_operand_a_o = a_getAddr_o;
+                    alu_operand_b_o = operand_b_int;
                     alu_operator_o = ALU_ADD;
 
                     // set the lowest bit of the address to 0
-                    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
+                    a_setAddr_i = {alu_result_i[31:1], 1'b0};
 
                     // unseal the capability
                     a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
@@ -748,13 +748,19 @@ module ibex_cheri_alu #(
                   wrote_capability = 1'b1;
 
                   if (instr_first_cycle_i) begin
+                    // check that at least a compressed instruction can be fetched
+                    // TODO: adding to the PC can overflow the 32bit PC and lead to low integer results
+                    // CHERI allows this and does not cause a trap, but this behaviour might change
+                    // this next line is here to allow easy updating of that logic
+                    logic [32:0] alu_result_int = 33'h2 + (operand_b_int[31] ? {1'b0, alu_result_i[31:0]}
+                                                                             : {1'b0, alu_result_i[31:0]});
                     exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
                     // capabilities sealed as Sentries are allowed
                     exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION]
                                                              & a_getKind_o != 7'h1E;
                     exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
-                    exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
-                                                             | (alu_result_i > a_getTop_o);
+                    exceptions_a_o[        LENGTH_VIOLATION] = alu_result_i[31:0] < a_getBase_o
+                                                             | alu_result_int > a_getTop_o;
                     // we don't care about trying to throw the last exception since we do support
                     // compressed instructions
                   end
