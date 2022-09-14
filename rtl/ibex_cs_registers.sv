@@ -689,7 +689,18 @@ module ibex_cs_registers #(
         CSR_MSCRATCH: mscratch_en = 1'b1;
 
         // mepc: exception program counter
-        CSR_MEPC: mepc_en = 1'b1;
+        // also write mepcc
+        CSR_MEPC: begin
+            mepc_en = 1'b1;
+            scr_mepcc_en = 1'b1;
+
+            isSealed_cap_i  = scr_mepcc_q;
+            setOffset_cap_i = scr_mepcc_q;
+            setOffset_offset_i = mepc_d;
+
+            scr_mepcc_d = setOffset_o[CheriCapWidth-1:0];
+            scr_mepcc_d[CheriCapWidth-1] = scr_mepcc_d[CheriCapWidth-1] & ~isSealed_o;
+        end
 
         // mcause
         CSR_MCAUSE: mcause_en = 1'b1;
