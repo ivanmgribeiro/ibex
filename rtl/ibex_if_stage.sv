@@ -109,9 +109,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic                        icache_ecc_error_o,
 
   // jump and branch target
-  input  logic [CheriCapWidth-1:0]    branch_target_ex_i,       // branch/jump target address
+  input  logic [CheriCapWidth-1:0]    branch_target_ex_i,       // branch/jump target capability or offset
   output logic [31:0]                 pc_set_target_o,          // when PC is set, this will be the
                                                                 // PC that will be jumped to
+                                                                // (used for RVFI)
 
   // CSRs
   input  logic [31:0]                 csr_mepc_i,               // PC to restore after handling
@@ -141,7 +142,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   // prefetch buffer related signals
   logic              prefetch_busy;
   logic              branch_req;
-  logic       [31:0] fetch_addr_n;
+  logic       [31:0] fetch_offset_n;
 
   logic              prefetch_branch;
   logic [31:0]       prefetch_addr;
@@ -179,7 +180,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              instr_err_out;
 
   logic              predict_branch_taken;
-  logic       [31:0] predict_branch_pc;
+  logic       [31:0] predict_branch_addr;
 
   logic        [4:0] irq_vec;
 
@@ -236,45 +237,45 @@ module ibex_if_stage import ibex_pkg::*; #(
   assign pc_mux_internal =
     (BranchPredictor && predict_branch_taken && !pc_set_i) ? PC_BP : pc_mux_i;
 
-  // fetch address selection mux
-  always_comb begin : fetch_addr_mux
+  // fetch offset selection mux
+  always_comb begin : fetch_offset_mux
     unique case (pc_mux_internal)
       PC_BOOT: begin
         // TODO TestRIG does not support having an offset of 80 in the reset PC
-        fetch_addr_n      = boot_addr_i;
+        fetch_offset_n    = boot_addr_i;
         pcc_setOffset_cap = CheriAlmightyCap;
       end
       PC_JUMP: begin
-        fetch_addr_n      = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
+        fetch_offset_n    = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
         pcc_setOffset_cap = branch_is_cap_i ? branch_target_ex_i : pcc_q;
       end
       PC_EXC: begin
-        fetch_addr_n      = exc_pc;                       // set PC to exception handler
+        fetch_offset_n    = exc_pc;                       // set PC to exception handler
         pcc_setOffset_cap = exc_pcc;
       end
       PC_ERET: begin
-        fetch_addr_n = csr_mepc_i;                   // restore PC when returning from EXC
+        fetch_offset_n    = csr_mepc_i;                   // restore PC when returning from EXC
         pcc_setOffset_cap = scr_mepcc_i;
       end
       PC_DRET: begin
-        fetch_addr_n = csr_depc_i;
+        fetch_offset_n    = csr_depc_i;
         pcc_setOffset_cap = pcc_q;
       end
       // Without branch predictor will never get pc_mux_internal == PC_BP. We still handle no branch
       // predictor case here to ensure redundant mux logic isn't synthesised.
       PC_BP: begin
         // TODO TestRIG does not support having an offset of 80 in the reset PC
-        fetch_addr_n = BranchPredictor ? predict_branch_pc : boot_addr_i;
+        fetch_offset_n    = BranchPredictor ? predict_branch_addr - pcc_getBase_o : boot_addr_i;
         pcc_setOffset_cap = pcc_q;
       end
       default: begin
-        fetch_addr_n = boot_addr_i;
+        fetch_offset_n    = boot_addr_i;
         pcc_setOffset_cap = pcc_q;
       end
     endcase
   end
 
-  assign pc_set_target_o = fetch_addr_n;
+  assign pc_set_target_o = fetch_offset_n;
 
   // tell CS register file to initialize mtvec on boot
   assign csr_mtvec_init_o = (pc_mux_i == PC_BOOT) & pc_set_i;
@@ -309,8 +310,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   // There are two possible "branch please" signals that are computed in the IF stage: branch_req
   // and nt_branch_mispredict_i. These should be mutually exclusive (see the NoMispredBranch
   // assertion), so we can just OR the signals together.
+  // The prefetchers (cache and prefetch buffer) handle _addresses_ since they directly control the
+  // memory interface
   assign prefetch_branch = branch_req | nt_branch_mispredict_i;
-  assign prefetch_addr   = branch_req ? {fetch_addr_n[31:1], 1'b0} : nt_branch_addr_i;
+  assign prefetch_addr   = branch_req ? {fetch_offset_n[31:1], 1'b0} + pcc_getBase_o : nt_branch_addr_i;
 
   // The fetch_valid signal that comes out of the icache or prefetch buffer should be squashed if we
   // had a misprediction.
@@ -435,7 +438,10 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   assign branch_req  = pc_set_i | predict_branch_taken;
 
-  assign pc_if_o     = if_instr_addr;
+  // the prefetchers (ICache or prefetch buffer) control what the next
+  // instruction is, so we need to calculate the PC based on the address that
+  // they give out
+  assign pc_if_o     = if_instr_addr - pcc_getBase_o;
   // pcc_if_o is assigned in the CHERI instantiations;
   assign if_busy_o   = prefetch_busy;
 
@@ -710,7 +716,7 @@ module ibex_if_stage import ibex_pkg::*; #(
       .fetch_valid_i(fetch_valid),
 
       .predict_branch_taken_o(predict_branch_taken_raw),
-      .predict_branch_pc_o   (predict_branch_pc)
+      .predict_branch_pc_o   (predict_branch_addr)
     );
 
     // If there is an instruction in the skid buffer there must be no branch prediction.
@@ -737,7 +743,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   end else begin : g_no_branch_predictor
     assign instr_bp_taken_o     = 1'b0;
     assign predict_branch_taken = 1'b0;
-    assign predict_branch_pc    = 32'b0;
+    assign predict_branch_addr  = 32'b0;
 
     assign if_instr_valid = fetch_valid;
     assign if_instr_rdata = fetch_rdata;
@@ -749,11 +755,12 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   // CHERI module instantiations
   logic [CheriCapWidth-1:0] pcc_setOffset_cap, pcc_setOffset_cap_int;
-  logic [31:0] pcc_newOffset, cheri_target_offset;
+  logic [31:0] pcc_newOffset, cheri_target_offset, pcc_getBase_o;
   assign pcc_setOffset_cap_int = pc_set_i ? pcc_setOffset_cap : pcc_q; // update PCC on jumps, otherwise preserve the old one
-  assign pcc_newOffset = pc_set_i ? fetch_addr_n : if_instr_addr;
+  assign pcc_newOffset = pc_set_i ? fetch_offset_n : pc_if_o;
   module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap_int, pcc_newOffset, {unused_pcc_setOffset_exact, pcc_if_o});
   module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
+  module_wrap64_getBase   pcc_getBase  (pcc_setOffset_cap_int, pcc_getBase_o);
 
   ////////////////
   // Assertions //
@@ -792,11 +799,11 @@ module ibex_if_stage import ibex_pkg::*; #(
     logic        predicted_branch_live_q, predicted_branch_live_d;
     logic [31:0] predicted_branch_nt_pc_q, predicted_branch_nt_pc_d;
     logic [31:0] awaiting_instr_after_mispredict_q, awaiting_instr_after_mispredict_d;
-    logic [31:0] next_pc;
+    logic [31:0] next_addr;
 
     logic mispredicted, mispredicted_d, mispredicted_q;
 
-    assign next_pc = fetch_addr + (instr_is_compressed_out ? 32'd2 : 32'd4);
+    assign next_addr = fetch_addr + (instr_is_compressed_out ? 32'd2 : 32'd4);
 
     logic predicted_branch;
 
@@ -831,7 +838,7 @@ module ibex_if_stage import ibex_pkg::*; #(
 
     always @(posedge clk_i) begin
       if (branch_req & predicted_branch) begin
-        predicted_branch_nt_pc_q <= next_pc;
+        predicted_branch_nt_pc_q <= next_addr;
       end
     end
 
