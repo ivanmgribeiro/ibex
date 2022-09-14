@@ -72,7 +72,7 @@ module ibex_cheri_memchecker #(
     // for instructions, bottom bit is always 0 and need to check 2 accesses
     // (in case we read a compressed instruction)
     assign data_addr_actual[1:0]       = 2'b00;
-    assign data_addr_actual_upper[1:0] = 2'b10;
+    assign data_addr_actual_upper[1:0] = 2'b11;
   end
 
   // perform the memory checks
@@ -85,7 +85,7 @@ module ibex_cheri_memchecker #(
                                                      | ({1'b0, data_addr_actual} + data_size_ext > auth_cap_getTop_o);
   // don't bother checking if it is below base (if it is, then there will be
   // a length violation in the lower word anyway
-  assign instr_upper_exc_d                         = DataMem ? 0 : {1'b0, data_addr_actual_upper} > auth_cap_getTop_o;
+  assign instr_upper_exc_d                         = DataMem ? 0 : {1'b0, data_addr_actual_upper} >= auth_cap_getTop_o;
 
   // only generate exceptions when requests are made
   always_ff @(posedge clk_i or negedge rst_ni) begin
