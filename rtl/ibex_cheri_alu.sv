@@ -470,16 +470,17 @@ module ibex_cheri_alu #(
                 }
               */
 
-              logic b_has_reserved_otype = b_isSealedWithType_o;
+              // unsealed, sentry and reserved otypes are not "software" types
+              logic b_has_software_type = b_isSealedWithType_o;
               a_setAddr_i = {{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o};
-              result_o = b_has_reserved_otype ? a_setAddr_o[CheriCapWidth-1:0]
-                                              : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
-              wrote_capability = b_has_reserved_otype;
+              result_o = b_has_software_type ? a_setAddr_o[CheriCapWidth-1:0]
+                                             : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
+              wrote_capability = b_has_software_type;
 
               exceptions_a_o[   TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
               exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
               // Not the same as a "common" length violation so we can't use the common case
-              exceptions_a_o[LENGTH_VIOLATION] = !b_has_reserved_otype
+              exceptions_a_o[LENGTH_VIOLATION] = b_has_software_type
                                                & ({{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o} < a_getBase_o
                                                  |{{(IntWidth-OTypeWidth+1){1'b0}}, b_getOType_o} >= a_getTop_o);
 
