@@ -151,6 +151,8 @@ module ibex_id_stage #(
   output logic [31:0]               lsu_wdata_int_o,
   output logic                      lsu_wcap_o,
   output logic [CheriCapWidth-1:0]  lsu_mem_auth_cap_o, // Authorizing capability for memory accesses
+  output logic [31:0]               lsu_auth_addr_o,
+  output logic                      lsu_add_auth_addr_o,
 
   input  logic                      lsu_req_done_i, // Data req to LSU is complete and
                                                     // instruction can move to writeback
@@ -357,6 +359,7 @@ module ibex_id_stage #(
 
   // Mux capability that provides capability for memory accesses
   assign lsu_mem_auth_cap_o = mem_ddc_relative ? scr_ddc_i : rf_rdata_a_cap_fwd;
+  assign lsu_auth_addr_o    = auth_getAddr_o;
 
   ///////////////////
   // Operand MUXES //
@@ -615,7 +618,7 @@ module ibex_id_stage #(
 
     .cap_mode_i(pcc_getFlags_o),
 
-    .use_cap_base_o(),
+    .add_auth_addr_o(lsu_add_auth_addr_o),
 
     .cheri_op_a_mux_sel_o (cheri_op_a_mux_sel),
     .cheri_op_b_mux_sel_o (cheri_op_b_mux_sel),
@@ -1275,6 +1278,10 @@ module ibex_id_stage #(
   // PCC flag
   logic pcc_getFlags_o;
   module_wrap64_getFlags pcc_getFlags (pcc_id_i, pcc_getFlags_o);
+
+  // memory authorizing capability address
+  logic [31:0] auth_getAddr_o;
+  module_wrap64_getAddr auth_getAddr (lsu_mem_auth_cap_o, auth_getAddr_o);
 
   //////////
   // FCOV //

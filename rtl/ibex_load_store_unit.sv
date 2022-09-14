@@ -52,6 +52,8 @@ module ibex_load_store_unit #(
   input  logic                      lsu_req_i,         // data request                     -> from ID/EX
 
   input  logic [31:0]  adder_result_ex_i,    // address computed in ALU          -> from ID/EX
+  input  logic [31:0]  auth_addr_i,          // the address of the authorizing capability
+  input  logic         add_auth_addr_i,      // whether to add the address of the authorizing capability
 
   output logic         addr_incr_req_o,      // request address increment for
                                               // misaligned accesses              -> to ID/EX
@@ -78,7 +80,7 @@ module ibex_load_store_unit #(
   output logic         perf_store_o
 );
 
-  logic [31:0]  data_addr;
+  logic [31:0]  data_addr, data_addr_int;
   logic [31:0]  data_addr_w_aligned;
   logic [31:0]  addr_last_q, addr_last_d;
 
@@ -125,8 +127,9 @@ module ibex_load_store_unit #(
 
   ls_fsm_e ls_fsm_cs, ls_fsm_ns;
 
-  assign data_addr   = adder_result_ex_i;
-  assign data_offset = data_addr[1:0];
+  assign data_addr_int = add_auth_addr_i ? adder_result_ex_i + auth_addr_i : adder_result_ex_i;
+  assign data_addr     = data_addr_int;
+  assign data_offset   = data_addr[1:0];
 
   ///////////////////
   // BE generation //
@@ -243,7 +246,7 @@ module ibex_load_store_unit #(
   // errors, mtval needs the (first) failing address.  Where an aligned access or the first half of
   // a misaligned access sees an error provide the calculated access address. For the second half of
   // a misaligned access provide the word aligned address of the second half.
-  assign addr_last_d = addr_incr_req_o ? data_addr_w_aligned : data_addr;
+  assign addr_last_d = addr_incr_req_o ? {adder_result_ex_i[31:2], 2'b0} : adder_result_ex_i;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
