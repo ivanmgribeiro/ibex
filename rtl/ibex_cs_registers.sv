@@ -801,7 +801,8 @@ module ibex_cs_registers #(
           setOffset_cap_i        = scr_wdata_i;
           getBaseAlignment_cap_i = scr_wdata_i;
           isSealed_cap_i         = scr_wdata_i;
-          setOffset_offset_i     = {getOffset_o[31:2], 2'b01}; // Ibex only allows vectored mode
+          //setOffset_offset_i     = {getOffset_o[31:2], 2'b01}; // Ibex only allows vectored mode
+          setOffset_offset_i     = {getOffset_o[31:2], getOffset_o[1:0] == 2'b01 ? 2'b01 : 2'b00}; // Ibex only allows vectored mode
 
           scr_mtcc_d = setOffset_o[CheriCapWidth-1:0];
           // only preserve the tag if the result was exact and the capability was not sealed
@@ -829,7 +830,7 @@ module ibex_cs_registers #(
           setOffset_cap_i    = scr_wdata_i;
           isSealed_cap_i     = scr_wdata_i;
           // Ibex does not support disabling the C extension, so only set bottom bit to 0
-          setOffset_offset_i = {getOffset_cap_i[31:1], 1'b0};
+          setOffset_offset_i = {getOffset_o[31:1], 1'b0};
 
           scr_mepcc_d = setOffset_o[CheriCapWidth-1:0];
           // preserve the tage if the result was exact and:
