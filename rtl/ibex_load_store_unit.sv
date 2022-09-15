@@ -35,6 +35,10 @@ module ibex_load_store_unit #(
   output logic                    data_we_o,
   output logic [3:0]              data_be_o,
   output logic [MemDataWidth-1:0] data_wdata_o,
+  output logic                    data_first_access_o, // this is the first part of an access
+                                                       // (ie not the second part of a
+                                                       // misaligned/cap access)
+                                                       // only used for CHERI checks
   input  logic [MemDataWidth-1:0] data_rdata_i,
 
   // signals to/from ID/EX stage
@@ -406,6 +410,7 @@ module ibex_load_store_unit #(
     lsu_err_d           = lsu_err_q;
     // don't preserve the old value; the signal should only be high for 1 cycle
     lsu_misalign_err_d  = 1'b0;
+    data_first_access_o = 1'b0;
 
     addr_update         = 1'b0;
     ctrl_update         = 1'b0;
@@ -432,6 +437,7 @@ module ibex_load_store_unit #(
             lsu_err_d    = 1'b0;
             perf_load_o  = ~lsu_we_i;
             perf_store_o = lsu_we_i;
+            data_first_access_o = 1'b1;
 
             if (data_gnt_i) begin
               ctrl_update         = 1'b1;

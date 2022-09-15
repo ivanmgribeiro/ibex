@@ -18,6 +18,7 @@ module ibex_cheri_memchecker #(
     input logic [1:0]  data_type_i,
     input logic [3:0]  data_be_i,
     input logic        data_cap_i,
+    input logic        data_first_access_i, // only used when DataMem = 1
 
     // new output signal to prevent CHERI-disallowed writes from writing memory
     output logic       data_we_o,
@@ -53,8 +54,6 @@ module ibex_cheri_memchecker #(
     assign data_size = 4'h2; // instruction accesses are 2 bytes
   end
   assign data_size_ext = {29'h0, data_size};
-
-  logic cap_first_access;
 
   // calculate actual data start address using byte enable
   // upper bits are identical since Ibex only produces accesses aligned to 4 bytes
@@ -92,7 +91,7 @@ module ibex_cheri_memchecker #(
     if (~rst_ni) begin
       cheri_mem_exc_q   <= '0;
       instr_upper_exc_q <= '0;
-    end else if (data_req_i & data_gnt_i) begin
+    end else if (data_req_i & data_gnt_i & (~DataMem | data_first_access_i)) begin
       cheri_mem_exc_q   <= cheri_mem_exc_d;
       instr_upper_exc_q <= instr_upper_exc_d;
     end

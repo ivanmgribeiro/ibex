@@ -350,6 +350,7 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriCapWidth-1:0] lsu_mem_auth_cap;
   logic [31:0]              lsu_auth_addr;
   logic                     lsu_add_auth_addr;
+  logic                     lsu_data_first_access;
 
   // stall control
   logic        id_in_ready;
@@ -872,11 +873,12 @@ module ibex_core import ibex_pkg::*; #(
     .data_pmp_err_i(pmp_req_err[PMP_D]),
     .data_cheri_err_i(cheri_exceptions_lsu),
 
-    .data_addr_o      (data_addr_o),
-    .data_we_o        (data_we_int),
-    .data_be_o        (data_be_o),
-    .data_wdata_o     (data_wdata_o),
-    .data_rdata_i     (data_rdata_i),
+    .data_addr_o        (data_addr_o),
+    .data_we_o          (data_we_int),
+    .data_be_o          (data_be_o),
+    .data_wdata_o       (data_wdata_o),
+    .data_rdata_i       (data_rdata_i),
+    .data_first_access_o(lsu_data_first_access),
 
     // signals to/from ID/EX stage
     .lsu_we_i       (lsu_we),
@@ -1051,18 +1053,19 @@ module ibex_core import ibex_pkg::*; #(
     .clk_i (clk_i),
     .rst_ni(rst_ni),
 
-    .auth_cap_i     (lsu_mem_auth_cap),
-    .data_req_i     (data_req_out),
-    .data_gnt_i     (data_gnt_i),
-    .data_rvalid_i  (data_rvalid_i),
-    .data_addr_i    (data_addr_o),
-    .data_we_i      (data_we_int),
-    .data_type_i    (lsu_type),
-    .data_be_i      (data_be_o),
-    .data_cap_i     (lsu_wcap),
-    .data_we_o      (data_we_o),
-    .cheri_mem_exc_o(cheri_exceptions_lsu),
-    .instr_upper_exc_o() // unused for data checker
+    .auth_cap_i         (lsu_mem_auth_cap),
+    .data_req_i         (data_req_out),
+    .data_gnt_i         (data_gnt_i),
+    .data_rvalid_i      (data_rvalid_i),
+    .data_addr_i        (data_addr_o),
+    .data_we_i          (data_we_int),
+    .data_type_i        (lsu_type),
+    .data_be_i          (data_be_o),
+    .data_cap_i         (lsu_wcap),
+    .data_first_access_i(lsu_data_first_access),
+    .data_we_o          (data_we_o),
+    .cheri_mem_exc_o    (cheri_exceptions_lsu),
+    .instr_upper_exc_o  ()  // unused for data checker
   );
 
   ibex_cheri_memchecker #(
@@ -1073,18 +1076,19 @@ module ibex_core import ibex_pkg::*; #(
     .clk_i (clk_i),
     .rst_ni(rst_ni),
 
-    .auth_cap_i     (pcc_if),
-    .data_req_i     (instr_req_o),
-    .data_gnt_i     (instr_gnt_i),
-    .data_rvalid_i  (instr_rvalid_i),
-    .data_addr_i    (instr_addr_o),
-    .data_we_i      (1'b0),
-    .data_type_i    (2'bX),  // unused for instruction checker
-    .data_be_i      (4'bX),  // unused for instruction checker
-    .data_cap_i     (1'b0), // no capability accesses via instruction interface
-    .data_we_o      (),      // unused for instruction checker
-    .cheri_mem_exc_o(cheri_exceptions_instr),
-    .instr_upper_exc_o(instr_upper_exc)
+    .auth_cap_i         (pcc_if),
+    .data_req_i         (instr_req_o),
+    .data_gnt_i         (instr_gnt_i),
+    .data_rvalid_i      (instr_rvalid_i),
+    .data_addr_i        (instr_addr_o),
+    .data_we_i          (1'b0),
+    .data_type_i        (2'bX),  // unused for instruction checker
+    .data_be_i          (4'bX),  // unused for instruction checker
+    .data_cap_i         (1'b0), // no capability accesses via instruction interface
+    .data_first_access_i(),   //unused for instruction checker
+    .data_we_o          (),      // unused for instruction checker
+    .cheri_mem_exc_o    (cheri_exceptions_instr),
+    .instr_upper_exc_o  (instr_upper_exc)
   );
 
   ///////////////////////
