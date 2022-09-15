@@ -756,8 +756,10 @@ module ibex_cheri_alu #(
                                                                              : {1'b0, alu_result_i[31:0]});
                     exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
                     // capabilities sealed as Sentries are allowed
-                    exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION]
-                                                             & a_getKind_o != 7'h1E;
+                    // if the capability _is_ a sentry, the immediate must be 0 (for cap-mode JALR)
+                    exceptions_a_o[          SEAL_VIOLATION] = (exceptions_a[          SEAL_VIOLATION]
+                                                               & a_getKind_o != 7'h1E)
+                                                             | (a_getKind_o == 7'h1E & operand_b_int != 0);
                     exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
                     exceptions_a_o[        LENGTH_VIOLATION] = alu_result_i[31:0] < a_getBase_o
                                                              | alu_result_int > a_getTop_o;
