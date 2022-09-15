@@ -752,8 +752,8 @@ module ibex_cheri_alu #(
                     // TODO: adding to the PC can overflow the 32bit PC and lead to low integer results
                     // CHERI allows this and does not cause a trap, but this behaviour might change
                     // this next line is here to allow easy updating of that logic
-                    logic [32:0] alu_result_int = 33'h2 + (operand_b_int[31] ? {1'b0, alu_result_i[31:0]}
-                                                                             : {1'b0, alu_result_i[31:0]});
+                    logic [32:0] alu_result_int = 33'h2 + (operand_b_int[31] ? {1'b0, alu_result_i[31:1], 1'b0}
+                                                                             : {1'b0, alu_result_i[31:1], 1'b0});
                     exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
                     // capabilities sealed as Sentries are allowed
                     // if the capability _is_ a sentry, the immediate must be 0 (for cap-mode JALR)
@@ -761,7 +761,7 @@ module ibex_cheri_alu #(
                                                                & a_getKind_o != 7'h1E)
                                                              | (a_getKind_o == 7'h1E & operand_b_int != 0);
                     exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
-                    exceptions_a_o[        LENGTH_VIOLATION] = alu_result_i[31:0] < a_getBase_o
+                    exceptions_a_o[        LENGTH_VIOLATION] = {alu_result_i[31:1], 1'b0} < a_getBase_o
                                                              | alu_result_int > a_getTop_o;
                     // we don't care about trying to throw the last exception since we do support
                     // compressed instructions
