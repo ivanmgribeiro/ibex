@@ -99,6 +99,9 @@ module ibex_cheri_alu #(
   logic [   IntWidth-1:0] a_setOffset_i;
   logic [CheriCapWidth:0] a_setOffset_o;
 
+  logic [   IntWidth-1:0] a_incOffset_i;
+  logic [CheriCapWidth:0] a_incOffset_o;
+
   logic [IntWidth-1:0] a_getBase_o;
 
   logic [IntWidth-1:0] b_getBase_o;
@@ -356,10 +359,10 @@ module ibex_cheri_alu #(
 
             C_INC_OFFSET: begin
               // TODO remove adders here?
-              a_setOffset_i = a_getOffset_o + operand_b_int;
-              result_o = a_setOffset_o[CheriCapWidth-1:0];
+              a_incOffset_i = operand_b_int;
+              result_o = a_incOffset_o[CheriCapWidth-1:0];
               // only preserve the tag if the result was "exact"
-              result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_setOffset_o[CheriCapWidth];
+              result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_incOffset_o[CheriCapWidth];
 
               wrote_capability = 1'b1;
 
@@ -821,11 +824,10 @@ module ibex_cheri_alu #(
         end
 
         C_INC_OFFSET_IMM: begin
-          // TODO remove adders?
-          a_setOffset_i = a_getOffset_o + operand_b_int;
-          result_o = a_setOffset_o[CheriCapWidth-1:0];
+          a_incOffset_i = operand_b_int;
+          result_o = a_incOffset_o[CheriCapWidth-1:0];
           // only preserve the tag if the result was "exact"
-          result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_setOffset_o[CheriCapWidth];
+          result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_incOffset_o[CheriCapWidth];
           wrote_capability = 1'b1;
 
           exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
@@ -934,6 +936,12 @@ module_wrap64_setOffset module_wrap64_setOffset_a (
       .wrap64_setOffset_cap   (operand_a_i),
       .wrap64_setOffset_offset(a_setOffset_i),
       .wrap64_setOffset       (a_setOffset_o));
+
+module_wrap64_incOffset module_wrap64_incOffset_a (
+      .wrap64_incOffset_cap   (operand_a_i),
+      .wrap64_incOffset_inc   (a_incOffset_i),
+      .wrap64_incOffset       (a_incOffset_o)
+    );
 
 module_wrap64_getBase module_getBase_a (
       .wrap64_getBase_cap     (operand_a_i),
