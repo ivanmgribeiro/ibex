@@ -26,7 +26,12 @@ module ibex_cheri_memchecker #(
     output logic [ibex_pkg::CheriExcWidth-1:0] cheri_mem_exc_o,
     // whether there was a length exception caused by fetching the second half
     // of an instruction
-    output logic                               instr_upper_exc_o
+    output logic                               instr_upper_exc_o,
+    // (for DII) when using DII, there is no backing instruction memory so fetching misaligned
+    // instructions would normally lead to multiple requests but only leads to 1 with DII,
+    // which means that there is no check on whether the _next_ fetch (for the
+    // top bits of the current instruction being fetched) are in bounds
+    output logic                               instr_upper_exc_2_o
 );
   import ibex_pkg::*;
 
@@ -40,6 +45,7 @@ module ibex_cheri_memchecker #(
 
   logic [CheriExcWidth-1:0] cheri_mem_exc_q, cheri_mem_exc_d;
   logic                     instr_upper_exc_q, instr_upper_exc_d;
+  logic                     instr_upper_exc_2_q, instr_upper_exc_2_d;
 
   // get data size from type to use in bounds checking, and then zero-extend
   // it to the correct size (33 bits since capability "top" is 33 bits)
@@ -88,20 +94,24 @@ module ibex_cheri_memchecker #(
   // don't bother checking if it is below base (if it is, then there will be
   // a length violation in the lower word anyway
   assign instr_upper_exc_d                         = DataMem ? 0 : {1'b0, data_addr_actual_upper} >= auth_cap_getTop_o;
+  assign instr_upper_exc_2_d                       = DataMem ? 0 : {1'b0, data_addr_actual + 'h6} > auth_cap_getTop_o;
 
   // only generate exceptions when requests are made
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-      cheri_mem_exc_q   <= '0;
-      instr_upper_exc_q <= '0;
+      cheri_mem_exc_q     <= '0;
+      instr_upper_exc_q   <= '0;
+      instr_upper_exc_2_q <= '0;
     end else if (data_req_i & data_gnt_i & (~DataMem | data_first_access_i)) begin
-      cheri_mem_exc_q   <= cheri_mem_exc_d;
-      instr_upper_exc_q <= instr_upper_exc_d;
+      cheri_mem_exc_q     <= cheri_mem_exc_d;
+      instr_upper_exc_q   <= instr_upper_exc_d;
+      instr_upper_exc_2_q <= instr_upper_exc_2_d;
     end
   end
 
-  assign cheri_mem_exc_o   = StableOut | data_rvalid_i ? cheri_mem_exc_q   : 0;
-  assign instr_upper_exc_o = StableOut | data_rvalid_i ? instr_upper_exc_q : 0;
+  assign cheri_mem_exc_o     = StableOut | data_rvalid_i ? cheri_mem_exc_q     : 0;
+  assign instr_upper_exc_o   = StableOut | data_rvalid_i ? instr_upper_exc_q   : 0;
+  assign instr_upper_exc_2_o = StableOut | data_rvalid_i ? instr_upper_exc_2_q : 0;
 
   assign data_we_o = data_we_i & ~|cheri_mem_exc_d;
 

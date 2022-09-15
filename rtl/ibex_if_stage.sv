@@ -50,6 +50,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   // CHERI exceptions
   input logic [ibex_pkg::CheriExcWidth-1:0] instr_cheri_exc_i,
   input logic                               instr_upper_exc_i,
+  input logic                               instr_upper_exc_2_i,
 
   // ICache RAM IO
   output logic [IC_NUM_WAYS-1:0]      ic_tag_req_o,
@@ -303,8 +304,18 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign instr_intg_err            = 1'b0;
   end
 
-  assign instr_err        = instr_intg_err | (instr_bus_err_i | |instr_cheri_exc_i
-                                             | (instr_upper_exc_i & ~if_instr_addr[1] & ~instr_is_compressed));
+  assign instr_err = instr_intg_err
+                   | instr_bus_err_i
+                   // non-length CHERI exception
+                   | ( |instr_cheri_exc_i[CheriExcWidth-1:LENGTH_VIOLATION+1]
+                     | |instr_cheri_exc_i[LENGTH_VIOLATION-1:0])
+                   // lower exception
+                   | (instr_cheri_exc_i[LENGTH_VIOLATION] & ~if_instr_addr[1])
+                   // upper exception and the PC was 4-byte aligned and was fetching a full word (not compressed)
+                   | (instr_upper_exc_i   & ~if_instr_addr[1] & ~instr_is_compressed)
+                   // (DII ONLY)
+                   // upper exception 2 and the PC was not 4-byte aligned and was fetching a full word
+                   | (instr_upper_exc_2_i &  if_instr_addr[1] & ~instr_is_compressed);
   assign instr_intg_err_o = instr_intg_err & instr_rvalid_i;
 
   // There are two possible "branch please" signals that are computed in the IF stage: branch_req

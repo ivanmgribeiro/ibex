@@ -308,7 +308,7 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriExcWidth-1:0] cheri_exceptions_b_ex;
   logic [CheriExcWidth-1:0] cheri_exceptions_lsu;
   logic [CheriExcWidth-1:0] cheri_exceptions_instr;
-  logic                     instr_upper_exc;
+  logic                     instr_upper_exc, instr_upper_exc_2;
 
   c_exc_cause_e       cheri_exc_cause;
   c_exc_reg_mux_sel_e cheri_exc_reg_sel;
@@ -480,6 +480,7 @@ module ibex_core import ibex_pkg::*; #(
 
     .instr_cheri_exc_i (cheri_exceptions_instr),
     .instr_upper_exc_i (instr_upper_exc),
+    .instr_upper_exc_2_i(instr_upper_exc_2),
 
     .ic_tag_req_o      (ic_tag_req_o),
     .ic_tag_write_o    (ic_tag_write_o),
@@ -1065,7 +1066,8 @@ module ibex_core import ibex_pkg::*; #(
     .data_first_access_i(lsu_data_first_access),
     .data_we_o          (data_we_o),
     .cheri_mem_exc_o    (cheri_exceptions_lsu),
-    .instr_upper_exc_o  ()  // unused for data checker
+    .instr_upper_exc_o  (), // unused for data checker
+    .instr_upper_exc_2_o()  // unused for data checker
   );
 
   ibex_cheri_memchecker #(
@@ -1088,7 +1090,8 @@ module ibex_core import ibex_pkg::*; #(
     .data_first_access_i(),   //unused for instruction checker
     .data_we_o          (),      // unused for instruction checker
     .cheri_mem_exc_o    (cheri_exceptions_instr),
-    .instr_upper_exc_o  (instr_upper_exc)
+    .instr_upper_exc_o  (instr_upper_exc),
+    .instr_upper_exc_2_o(instr_upper_exc_2)
   );
 
   ///////////////////////
