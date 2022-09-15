@@ -627,8 +627,10 @@ module ibex_cheri_alu #(
                 end
 
                 C_GET_TYPE: begin
-                  result_o[IntWidth-1:0] = a_isSealed_o ? {{(IntWidth-OTypeWidth){a_getOType_o[OTypeWidth-1]}}, a_getOType_o}
-                                                        : {IntWidth{1'b1}};
+                  // if the type is a reserved one (ie it is not a software
+                  // one), zero-extend else sign-extend
+                  result_o[IntWidth-1:0] = ~a_isSealedWithType_o ? {{(IntWidth-OTypeWidth){a_getOType_o[OTypeWidth-1]}}, a_getOType_o}
+                                                                 : {{(IntWidth-OTypeWidth){1'b0}},                       a_getOType_o};
                   wrote_capability = 1'b0;
 
                   if (Verbosity) begin
