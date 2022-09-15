@@ -125,6 +125,10 @@ module ibex_cs_registers #(
   output logic                 illegal_csr_insn_o,     // access to non-existent CSR,
                                                         // with wrong priviledge level, or
                                                         // missing write permissions
+  output logic                 illegal_scr_insn_o, // same as illegal_csr_insn_o,
+                                                   // but for SCRs
+  output logic                 csr_no_asr_o,       // legal CSR access instruction, but missing ASR
+  output logic                 scr_no_asr_o,       // legal SCR access instruction, but missing ASR
   // CHERI exception cause
   input  ibex_pkg::c_exc_cause_e       cheri_exc_cause_i,
   input  ibex_pkg::c_exc_reg_mux_sel_e cheri_exc_reg_sel_i,
@@ -337,7 +341,7 @@ module ibex_cs_registers #(
   logic        csr_wr;
 
   // SCR update logic
-  logic scr_we;
+  logic scr_wr, scr_we_int;
 
   // Access violation signals
   logic        dbg_csr;
@@ -345,6 +349,12 @@ module ibex_cs_registers #(
   logic        illegal_csr_priv;
   logic        illegal_csr_dbg;
   logic        illegal_csr_write;
+  logic        illegal_csr_asr;
+
+  logic        illegal_scr;
+  logic        illegal_scr_priv;
+  logic        illegal_scr_write;
+  logic        illegal_scr_asr;
 
   logic [7:0]  unused_boot_addr;
   logic [2:0]  unused_csr_addr;
@@ -364,8 +374,17 @@ module ibex_cs_registers #(
   // See RISC-V Privileged Specification, version 1.11, Section 2.1
   assign illegal_csr_priv   = (csr_addr[9:8] > {priv_lvl_q});
   assign illegal_csr_write  = (csr_addr[11:10] == 2'b11) && csr_wr;
+  assign illegal_csr_asr    = ~pcc_has_asr; // unprivileged CSRs can be accessed without ASR,
+                                            // but Ibex does not implement them
   assign illegal_csr_insn_o = csr_access_i & (illegal_csr | illegal_csr_write | illegal_csr_priv |
                                               illegal_csr_dbg);
+  assign csr_no_asr_o       = csr_access_i & illegal_csr_asr;
+
+  assign illegal_scr_priv   = (scr_addr_i[4:3] > {priv_lvl_q});
+  assign illegal_scr_write  = (scr_addr_i == SCR_PCC) && scr_wr; // only illegal to write to PCC
+  assign illegal_scr_asr    = (scr_addr_i != SCR_PCC && scr_addr_i != SCR_DDC) && ~pcc_has_asr;
+  assign illegal_scr_insn_o = scr_access_i & (illegal_scr | illegal_scr_write | illegal_scr_priv);
+  assign scr_no_asr_o       = scr_access_i & illegal_scr_asr;
 
   // mip CSR is purely combinational - must be able to re-enable the clock upon WFI
   assign mip.irq_software = irq_software_i;
@@ -377,6 +396,7 @@ module ibex_cs_registers #(
   always_comb begin
     csr_rdata_int = '0;
     illegal_csr   = 1'b0;
+    illegal_scr   = 1'b0;
     dbg_csr       = 1'b0;
     scr_rdata_o   = '0;
 
@@ -597,7 +617,9 @@ module ibex_cs_registers #(
       SCR_MTDC:      scr_rdata_o = scr_mtdc_q;
       SCR_MEPCC:     scr_rdata_o = scr_mepcc_q;
       SCR_MSCRATCHC: scr_rdata_o = scr_mscratchc_q;
-      default: scr_rdata_o = 'X;
+      default: begin
+        illegal_scr = 1'b1;
+      end
     endcase
   end
 
@@ -784,7 +806,7 @@ module ibex_cs_registers #(
       endcase
     end
 
-    if (scr_we) begin
+    if (scr_we_int) begin
       unique case (scr_addr_i)
         SCR_DDC: begin
           scr_ddc_d = scr_wdata_i;
@@ -994,11 +1016,13 @@ module ibex_cs_registers #(
   assign csr_wr = (csr_op_i inside {CSR_OP_WRITE, CSR_OP_SET, CSR_OP_CLEAR});
 
   // only write CSRs during one clock cycle
-  assign csr_we_int  = csr_wr & csr_op_en_i & ~illegal_csr_insn_o;
+  assign csr_we_int  = csr_wr & csr_op_en_i & ~illegal_csr_insn_o & ~illegal_csr_asr;
 
   assign csr_rdata_o = csr_rdata_int;
 
-  assign scr_we = scr_op_en_i & (scr_op_i inside {SCR_WRITE, SCR_READWRITE});
+  assign scr_wr = (scr_op_i inside {SCR_WRITE, SCR_READWRITE});
+
+  assign scr_we_int = scr_wr & scr_op_en_i & ~illegal_scr_insn_o & ~illegal_scr_asr;
 
   // directly output some registers
   assign csr_mepc_o  = mepc_q;
@@ -1913,6 +1937,13 @@ module ibex_cs_registers #(
     .wrap64_getKind_cap (isSealed_cap_i),
     .wrap64_getKind     (getKind_o));
   assign isSealed_o = getKind_o[6:4] != 3'b000;
+
+  logic [30:0] pcc_perms;
+  logic pcc_has_asr;
+  module_wrap64_getPerms module_getPerms (
+    .wrap64_getPerms_cap (pcc_id_i),
+    .wrap64_getPerms     (pcc_perms));
+  assign pcc_has_asr = pcc_perms[PermitAccessSysReg];
 
   ////////////////
   // Assertions //

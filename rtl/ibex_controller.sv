@@ -68,11 +68,12 @@ module ibex_controller #(
   // CHERI exception signals
   input  logic                               cheri_en_i,
   input  logic                               cheri_alu_exc_only_i,
-  input  logic                               cheri_check_asr_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_lsu_i,
-  input  logic                               cheri_asr_exc_i,
+  input  logic                               scr_no_asr_i,
+  input  logic                               csr_no_asr_i,
+  input  logic                               mret_no_asr_i,
 
   // jump/branch signals
   input  logic                  branch_set_i,            // branch set signal (branch definitely
@@ -241,8 +242,10 @@ module ibex_controller #(
   //   they occurred in the ALU and we want to see ALU exceptions
   //   OR it was an ASR exception and we were checking for ASR exceptions
   assign cheri_exc = instr_valid_i
-                   & ( (cheri_en_i | cheri_alu_exc_only_i) & (|cheri_exceptions_a_ex_i | |cheri_exceptions_b_ex_i)
-                     | (cheri_check_asr_i & cheri_asr_exc_i));
+                   & ( ((cheri_en_i | cheri_alu_exc_only_i) & (|cheri_exceptions_a_ex_i | |cheri_exceptions_b_ex_i))
+                     | (scr_no_asr_i)
+                     | (csr_no_asr_i)
+                     | (mret_no_asr_i));
 
 
   // exception requests
@@ -998,7 +1001,7 @@ module ibex_controller #(
     cheri_exc_cause_o   = CAUSE_NONE;
     cheri_exc_reg_sel_o = REG_A;
 
-    if (cheri_asr_exc_i) begin
+    if (scr_no_asr_i | csr_no_asr_i | mret_no_asr_i) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_ACCESS_SYSTEM_REGISTERS_VIOLATION;
       cheri_exc_reg_sel_o = REG_SCR;
 

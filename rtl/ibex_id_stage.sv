@@ -133,11 +133,14 @@ module ibex_id_stage #(
   input  logic                      csr_mstatus_tw_i,
   input  logic                      illegal_csr_insn_i,
   input  logic                      data_ind_timing_i,
+  input  logic                      csr_no_asr_i,
 
   // SCR
   output logic                      scr_access_o,
   output ibex_pkg::scr_op_e         scr_op_o,
   output logic                      scr_op_en_o,
+  input  logic                      illegal_scr_insn_i,
+  input  logic                      scr_no_asr_i,
 
   // SCR values
   input logic [CheriCapWidth-1:0]   scr_ddc_i,
@@ -240,6 +243,7 @@ module ibex_id_stage #(
   logic        illegal_insn_dec;
   logic        illegal_dret_insn;
   logic        illegal_umode_insn;
+  logic        mret_no_asr;
   logic        ebrk_insn;
   logic        mret_insn_dec;
   logic        dret_insn_dec;
@@ -342,8 +346,6 @@ module ibex_id_stage #(
 
   // CSR control
   logic        csr_pipe_flush;
-  logic        cheri_check_asr;
-  logic        cheri_asr_exc;
 
   logic [31:0] alu_operand_a;
   logic [31:0] alu_operand_b;
@@ -519,7 +521,7 @@ module ibex_id_stage #(
   ///////////////////////
 
   // Suppress register write if there is an illegal CSR access or instruction is not executing
-  assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i & ~id_exception;
+  assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i & ~illegal_scr_insn_i & ~id_exception;
 
   // Register file write data mux
   always_comb begin : rf_wdata_id_mux
@@ -617,7 +619,6 @@ module ibex_id_stage #(
     .cheri_threeop_opcode_o(cheri_threeop_opcode_o),
     .cheri_s_a_d_opcode_o  (cheri_s_a_d_opcode_o),
     .cheri_alu_exc_only_o  (cheri_alu_exc_only_o),
-    .cheri_check_asr_o     (cheri_check_asr),
 
     .cap_mode_i (pcc_getFlags_o),
     .priv_mode_i(priv_mode_i),
@@ -678,9 +679,6 @@ module ibex_id_stage #(
     end
   end
 
-  // Check CHERI AccessSystemRegisters
-  assign cheri_asr_exc = cheri_check_asr & ~pcc_getPerms_o[PermitAccessSysReg];
-
   ////////////////
   // Controller //
   ////////////////
@@ -692,9 +690,10 @@ module ibex_id_stage #(
   assign illegal_umode_insn = (priv_mode_i != PRIV_LVL_M) &
                               // MRET must be in M-Mode. TW means trap WFI to M-Mode.
                               (mret_insn_dec | (csr_mstatus_tw_i & wfi_insn_dec));
+  assign mret_no_asr        = mret_insn_dec & ~pcc_has_asr;
 
   assign illegal_insn_o = instr_valid_i &
-      (illegal_insn_dec | illegal_csr_insn_i | illegal_dret_insn | illegal_umode_insn);
+      (illegal_insn_dec | illegal_csr_insn_i | illegal_scr_insn_i | illegal_dret_insn | illegal_umode_insn);
 
   ibex_controller #(
     .WritebackStage (WritebackStage),
@@ -751,11 +750,12 @@ module ibex_id_stage #(
     // CHERI exceptions
     .cheri_en_i             (cheri_en_o),
     .cheri_alu_exc_only_i   (cheri_alu_exc_only_o),
-    .cheri_check_asr_i      (cheri_check_asr),
     .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
     .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
     .cheri_exceptions_lsu_i (cheri_exceptions_lsu_i),
-    .cheri_asr_exc_i        (cheri_asr_exc),
+    .scr_no_asr_i           (scr_no_asr_i),
+    .csr_no_asr_i           (csr_no_asr_i),
+    .mret_no_asr_i          (mret_no_asr),
 
     // jump/branch control
     .branch_set_i     (branch_set),
@@ -826,7 +826,7 @@ module ibex_id_stage #(
   // asserting it for an illegal csr access would result in a flush that would need to deassert it).
   // The same applies to SCRs
   assign csr_op_en_o             = csr_access_o & instr_executing & instr_id_done_o;
-  assign scr_op_en_o             = scr_access_o & instr_executing & instr_id_done_o & ~cheri_asr_exc;
+  assign scr_op_en_o             = scr_access_o & instr_executing & instr_id_done_o;
 
   assign alu_operator_ex_o           = alu_operator;
   assign alu_operand_a_ex_o          = alu_operand_a;
@@ -1257,7 +1257,7 @@ module ibex_id_stage #(
   // Signal which instructions to count as retired in minstret, all traps along with ebrk and
   // ecall instructions are not counted.
   assign instr_perf_count_id_o = ~ebrk_insn & ~ecall_insn_dec & ~illegal_insn_dec &
-      ~illegal_csr_insn_i & ~instr_fetch_err_i;
+      ~illegal_csr_insn_i & ~illegal_scr_insn_i & ~instr_fetch_err_i;
 
   // An instruction is ready to move to the writeback stage (or retire if there is no writeback
   // stage)
@@ -1277,7 +1277,9 @@ module ibex_id_stage #(
 
   // PCC permissions
   logic [30:0] pcc_getPerms_o;
+  logic        pcc_has_asr;
   module_wrap64_getPerms pcc_getPerms (pcc_id_i, pcc_getPerms_o);
+  assign pcc_has_asr = pcc_getPerms_o[PermitAccessSysReg];
 
   // PCC flag
   logic pcc_getFlags_o;
@@ -1326,7 +1328,7 @@ module ibex_id_stage #(
 
   // Branch decision must be valid when jumping.
   `ASSERT_KNOWN_IF(IbexBranchDecisionValid, branch_decision_i,
-      instr_valid_i && !(illegal_csr_insn_i || instr_fetch_err_i))
+      instr_valid_i && !(illegal_csr_insn_i || illegal_scr_insn_i || instr_fetch_err_i))
 
   // Instruction delivered to ID stage can not contain X.
   `ASSERT_KNOWN_IF(IbexIdInstrKnown, instr_rdata_i,

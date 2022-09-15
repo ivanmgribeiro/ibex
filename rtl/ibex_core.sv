@@ -323,6 +323,7 @@ module ibex_core import ibex_pkg::*; #(
   logic        illegal_csr_insn_id;    // CSR access to non-existent register,
                                        // with wrong priviledge level,
                                        // or missing write permissions
+  logic        csr_no_asr_id;
 
   // SCR control;
   logic                     scr_access;
@@ -331,6 +332,8 @@ module ibex_core import ibex_pkg::*; #(
   scr_num_e                 scr_addr;
   logic [CheriCapWidth-1:0] scr_rdata;
   logic [CheriCapWidth-1:0] scr_wdata;
+  logic                     illegal_scr_insn_id;
+  logic                     scr_no_asr_id;
 
   // SCRs
   logic [CheriCapWidth-1:0] scr_ddc;
@@ -686,11 +689,14 @@ module ibex_core import ibex_pkg::*; #(
     .csr_mstatus_tw_i     (csr_mstatus_tw),
     .illegal_csr_insn_i   (illegal_csr_insn_id),
     .data_ind_timing_i    (data_ind_timing),
+    .csr_no_asr_i         (csr_no_asr_id),
 
     // SCR
     .scr_access_o         (scr_access),
     .scr_op_en_o          (scr_op_en),
     .scr_op_o             (scr_op),
+    .illegal_scr_insn_i   (illegal_scr_insn_id),
+    .scr_no_asr_i         (scr_no_asr_id),
 
     // SCR values
     .scr_ddc_i            (scr_ddc),
@@ -1264,6 +1270,9 @@ module ibex_core import ibex_pkg::*; #(
     .csr_mcause_i      (exc_cause),
     .csr_mtval_i       (csr_mtval),
     .illegal_csr_insn_o(illegal_csr_insn_id),
+    .illegal_scr_insn_o(illegal_scr_insn_id),
+    .csr_no_asr_o      (csr_no_asr_id),
+    .scr_no_asr_o      (scr_no_asr_id),
 
     // CHERI exception cause
     .cheri_exc_cause_i  (cheri_exc_cause),

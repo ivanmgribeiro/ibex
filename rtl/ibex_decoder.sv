@@ -86,7 +86,6 @@ module ibex_decoder #(
   output ibex_pkg::cheri_threeop_funct7_e cheri_threeop_opcode_o,
   output ibex_pkg::cheri_s_a_d_funct5_e   cheri_s_a_d_opcode_o,
   output logic                            cheri_alu_exc_only_o,
-  output logic                            cheri_check_asr_o,
 
   // whether we're in capability mode or not
   input logic                             cap_mode_i,
@@ -262,7 +261,6 @@ module ibex_decoder #(
 
     add_auth_addr_o        = 1'b0;
     mem_ddc_relative_o     = 1'b0;
-    cheri_check_asr_o      = 1'b0;
 
     rf_wdata_sel_o        = RF_WD_EX;
     rf_we                 = 1'b0;
@@ -682,7 +680,6 @@ module ibex_decoder #(
 
             12'h302: begin  // mret
               mret_insn_o       = 1'b1;
-              cheri_check_asr_o = 1'b1;
             end
 
             12'h7b2:  // dret
@@ -704,8 +701,6 @@ module ibex_decoder #(
           csr_access_o     = 1'b1;
           rf_wdata_sel_o   = RF_WD_CSR;
           rf_we            = 1'b1;
-
-          cheri_check_asr_o = 1'b1;
 
           if (~instr[14]) begin
             rf_ren_a_o         = 1'b1;
@@ -752,10 +747,10 @@ module ibex_decoder #(
                 rf_we              = ~instr_first_cycle_i;
               end
               C_SPECIAL_RW: begin
+                rf_we = 1'b1;
                 if ((rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) // writing to PCC is illegal
                    |(rf_raddr_b_o == SCR_DDC                    )
                    ) begin
-                  rf_we = 1'b1;
                 end else if ((rf_raddr_b_o == SCR_MTCC     ) // Machine mode
                             |(rf_raddr_b_o == SCR_MTDC     ) // Machine mode
                             |(rf_raddr_b_o == SCR_MSCRATCHC) // Machine mode
@@ -769,12 +764,7 @@ module ibex_decoder #(
                             //|(rf_raddr_b_o == SCR_USCRATCHC              ) // User mode
                             //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
                             ) begin
-                  if (priv_mode_i != PRIV_LVL_M) begin
-                    illegal_insn = 1'b1;
-                  end else begin
-                    rf_we = 1'b1;
-                    cheri_check_asr_o = 1'b1;
-                  end
+                  // nothing to do, but not illegal instruction
                 end else begin
                   illegal_insn = 1'b1;
                 end
