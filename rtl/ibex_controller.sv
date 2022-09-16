@@ -1117,6 +1117,13 @@ module ibex_controller #(
       cheri_exc_cause_o   = CAUSE_LENGTH_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
+    end else if (cheri_exceptions_a_ex_i[UNALIGNED_BASE_VIOLATION]) begin
+      cheri_exc_cause_o   = CAUSE_UNALIGNED_BASE_VIOLATION;
+      cheri_exc_reg_sel_o = REG_A;
+    end else if (cheri_exceptions_b_ex_i[UNALIGNED_BASE_VIOLATION]) begin
+      cheri_exc_cause_o   = CAUSE_UNALIGNED_BASE_VIOLATION;
+      cheri_exc_reg_sel_o = REG_B;
+
     end else if (cheri_exceptions_a_ex_i[INEXACT_BOUNDS_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_REPRESENTABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;

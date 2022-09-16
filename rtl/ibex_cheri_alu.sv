@@ -768,6 +768,7 @@ module ibex_cheri_alu #(
                     exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
                     exceptions_a_o[        LENGTH_VIOLATION] = {alu_result_i[31:1], 1'b0} < a_getBase_o
                                                              | alu_result_int > a_getTop_o;
+                    exceptions_a_o[UNALIGNED_BASE_VIOLATION] = a_getBase_o[0];
                     // we don't care about trying to throw the last exception since we do support
                     // compressed instructions
                   end

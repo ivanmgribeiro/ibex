@@ -306,11 +306,12 @@ package ibex_pkg;
     GLOBAL_VIOLATION,
     LENGTH_VIOLATION,
     INEXACT_BOUNDS_VIOLATION,
+    UNALIGNED_BASE_VIOLATION,
     SOFTWARE_DEFINED_VIOLATION
   } cheri_capability_exception_e;
 
   // TODO perhaps there is a better way of representing these
-  parameter int unsigned CheriExcWidth      = 19;
+  parameter int unsigned CheriExcWidth      = 20;
 
   parameter int unsigned CheriMaxOType      = 'hb;
 
@@ -541,7 +542,7 @@ package ibex_pkg;
     CAUSE_SOFTWARE_DEFINED_PERMISSION_VIOLATION    = 5'h08,
     // 'h09 deprecated in RISC-V
     CAUSE_REPRESENTABILITY_VIOLATION               = 5'h0A,
-    CAUSE_UNALIGNED_BASE                           = 5'h0B,
+    CAUSE_UNALIGNED_BASE_VIOLATION                 = 5'h0B,
     // 'h0C..'h0F reserved
     CAUSE_GLOBAL_VIOLATION                         = 5'h10,
     CAUSE_PERMIT_EXECUTE_VIOLATION                 = 5'h11,
