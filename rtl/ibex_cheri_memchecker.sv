@@ -83,7 +83,7 @@ module ibex_cheri_memchecker #(
   // perform the memory checks
   assign cheri_mem_exc_d[           TAG_VIOLATION] = ~auth_cap_isValidCap_o;
   assign cheri_mem_exc_d[          SEAL_VIOLATION] =  auth_cap_isSealed_o;
-  assign cheri_mem_exc_d[   PERMIT_LOAD_VIOLATION] = ~data_we_i & ~auth_cap_getPerms_o[2];
+  assign cheri_mem_exc_d[   PERMIT_LOAD_VIOLATION] = ~data_we_i & DataMem & ~auth_cap_getPerms_o[2];
   assign cheri_mem_exc_d[  PERMIT_STORE_VIOLATION] =  data_we_i & ~auth_cap_getPerms_o[3];
   assign cheri_mem_exc_d[PERMIT_EXECUTE_VIOLATION] = ~DataMem & ~auth_cap_getPerms_o[PermitExecuteIndex];
   assign cheri_mem_exc_d[        LENGTH_VIOLATION] = (data_addr_actual < auth_cap_getBase_o)
