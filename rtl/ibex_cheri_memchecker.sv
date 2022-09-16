@@ -89,8 +89,8 @@ module ibex_cheri_memchecker #(
   assign cheri_mem_exc_d[        LENGTH_VIOLATION] = (data_addr_actual < auth_cap_getBase_o)
                                                      // if this is an instruction checker, allow accesses that
                                                      // overflow the address calculation
-                                                     | DataMem ? ({1'b0, data_addr_actual} + {1'b0, data_size_ext} > auth_cap_getTop_o)
-                                                               : ({1'b0, data_addr_actual + data_size_ext} > auth_cap_getTop_o);
+                                                   | (DataMem ? ({1'b0, data_addr_actual} + {1'b0, data_size_ext} > auth_cap_getTop_o)
+                                                              : ({1'b0, data_addr_actual + data_size_ext} > auth_cap_getTop_o));
   // don't bother checking if it is below base (if it is, then there will be
   // a length violation in the lower word anyway
   assign instr_upper_exc_d                         = DataMem ? 0 : {1'b0, data_addr_actual_upper} >= auth_cap_getTop_o;
