@@ -31,6 +31,7 @@ module ibex_fetch_fifo #(
 
   // output port
   output logic                out_valid_o,
+  output logic                out_imm_o, // whether the input has immediately been connected to the output
   input  logic                out_ready_i,
   output logic [31:0]         out_addr_o,
   output logic [31:0]         out_rdata_o,
@@ -68,6 +69,7 @@ module ibex_fetch_fifo #(
   assign rdata = valid_q[0] ? rdata_q[0] : in_rdata_i;
   assign err   = valid_q[0] ? err_q[0]   : in_err_i;
   assign valid = valid_q[0] | in_valid_i;
+  assign out_imm_o = ~valid_q[0];
 
   // The FIFO contains word aligned memory fetches, but the instructions contained in each entry
   // might be half-word aligned (due to compressed instructions)

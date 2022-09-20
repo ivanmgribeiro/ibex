@@ -79,6 +79,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic                        instr_bp_taken_o,         // instruction was predicted to be
                                                                 // a taken branch
   output logic                        instr_fetch_err_o,        // bus error on fetch
+  output logic                        instr_cheri_err_o,        // cheri error on fetch
   output logic                        instr_fetch_err_plus2_o,  // bus error misaligned
   output logic                        illegal_c_insn_id_o,      // compressed decoder thinks this
                                                                 // is an invalid instr
@@ -89,6 +90,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic [CheriCapWidth-1:0]    pcc_id_o,
   input  logic                        pmp_err_if_i,
   input  logic                        pmp_err_if_plus2_i,
+
+  output logic [ibex_pkg::CheriExcWidth-1:0] instr_cheri_exc_o, // CHERI exceptions thrown by fetch
 
   // control signals
   input  logic                        instr_valid_clear_i,      // clear instr valid bit in IF-ID
@@ -137,6 +140,19 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              instr_new_id_d, instr_new_id_q;
 
   logic              instr_err, instr_intg_err;
+  logic              instr_cheri_err;
+
+  logic [CheriExcWidth-1:0] instr_cheri_all_exc;
+  logic                     instr_cheri_len_exc;
+
+  logic [CheriExcWidth-1:0] cheri_exc_q;
+  // whether the next error to come out of the prefetch fifo was a CHERI error
+  logic                     err_is_cheri_q;
+  // tracks whether there is an error in the fifo.
+  // needed because if multiple errors come in we do not want to overwrite
+  // error data. The first error encountered will flush all the subsequent
+  // ones that are in the pipeline.
+  logic                     err_in_fifo_q;
 
   logic [CheriCapWidth-1:0] pcc_q;
 
@@ -150,6 +166,7 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   logic              fetch_valid_raw;
   logic              fetch_valid;
+  logic              fetch_imm;
   logic              fetch_ready;
   logic       [31:0] fetch_rdata;
   logic       [31:0] fetch_addr;
@@ -304,18 +321,23 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign instr_intg_err            = 1'b0;
   end
 
+  assign instr_cheri_len_exc = (instr_cheri_exc_i[LENGTH_VIOLATION] & ~if_instr_addr[1]) // lower exception
+                             // upper exception and the PC was 4-byte aligned and was fetching a full word (not compressed)
+                             | (instr_upper_exc_i   & ~if_instr_addr[1] & ~instr_is_compressed)
+                             // (DII ONLY)
+                             // upper exception 2 and the PC was not 4-byte aligned and was fetching a full word
+                             | (instr_upper_exc_2_i &  if_instr_addr[1] & ~instr_is_compressed);
+
+  assign instr_cheri_all_exc = { instr_cheri_exc_i[CheriExcWidth-1:LENGTH_VIOLATION+1], // non-length CHERI exception
+                                 instr_cheri_len_exc,
+                                 instr_cheri_exc_i[LENGTH_VIOLATION-1:0] };
+
+  assign instr_cheri_err = |instr_cheri_all_exc;
+
   assign instr_err = instr_intg_err
                    | instr_bus_err_i
-                   // non-length CHERI exception
-                   | ( |instr_cheri_exc_i[CheriExcWidth-1:LENGTH_VIOLATION+1]
-                     | |instr_cheri_exc_i[LENGTH_VIOLATION-1:0])
-                   // lower exception
-                   | (instr_cheri_exc_i[LENGTH_VIOLATION] & ~if_instr_addr[1])
-                   // upper exception and the PC was 4-byte aligned and was fetching a full word (not compressed)
-                   | (instr_upper_exc_i   & ~if_instr_addr[1] & ~instr_is_compressed)
-                   // (DII ONLY)
-                   // upper exception 2 and the PC was not 4-byte aligned and was fetching a full word
-                   | (instr_upper_exc_2_i &  if_instr_addr[1] & ~instr_is_compressed);
+                   | instr_cheri_err;
+
   assign instr_intg_err_o = instr_intg_err & instr_rvalid_i;
 
   // There are two possible "branch please" signals that are computed in the IF stage: branch_req
@@ -397,6 +419,7 @@ module ibex_if_stage import ibex_pkg::*; #(
 
         .ready_i             ( fetch_ready                ),
         .valid_o             ( fetch_valid_raw            ),
+        .imm_o               ( fetch_imm                  ),
         .rdata_o             ( fetch_rdata                ),
         .addr_o              ( fetch_addr                 ),
         .err_o               ( fetch_err                  ),
@@ -574,6 +597,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         instr_rdata_id_o         <= '0;
         instr_rdata_alu_id_o     <= '0;
         instr_fetch_err_o        <= '0;
+        instr_cheri_err_o        <= '0;
         instr_fetch_err_plus2_o  <= '0;
         instr_rdata_c_id_o       <= '0;
         instr_is_compressed_id_o <= '0;
@@ -588,6 +612,7 @@ module ibex_if_stage import ibex_pkg::*; #(
           // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
           instr_rdata_alu_id_o     <= instr_out;
           instr_fetch_err_o        <= instr_err_out;
+          instr_cheri_err_o        <= instr_err_out & (fetch_imm ? instr_cheri_err : err_is_cheri_q);
           instr_fetch_err_plus2_o  <= if_instr_err_plus2;
           instr_rdata_c_id_o       <= if_instr_rdata[15:0];
           instr_is_compressed_id_o <= instr_is_compressed_out;
@@ -605,6 +630,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
         instr_rdata_alu_id_o     <= instr_out;
         instr_fetch_err_o        <= instr_err_out;
+        instr_cheri_err_o        <= instr_err_out & (fetch_imm ? instr_cheri_err : err_is_cheri_q);
         instr_fetch_err_plus2_o  <= if_instr_err_plus2;
         instr_rdata_c_id_o       <= if_instr_rdata[15:0];
         instr_is_compressed_id_o <= instr_is_compressed_out;
@@ -612,6 +638,26 @@ module ibex_if_stage import ibex_pkg::*; #(
         pc_id_o                  <= pc_if_o;
         pcc_id_o                 <= pcc_if_o;
       end
+    end
+  end
+
+  // Save CHERI instruction exception information
+  // TODO check ResetAll?
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      err_in_fifo_q       <= 0;
+      err_is_cheri_q      <= 0;
+      cheri_exc_q         <= 0;
+    end else if (err_in_fifo_q & if_id_pipe_reg_we & instr_err_out) begin
+      // the error in the FIFO has just been passed on to the ID stage; this
+      // means the fetch FIFO has been cleared (since the error will lead to
+      // a flush) and we need to start saving new errors
+      err_in_fifo_q       <= 0;
+    end else if (instr_rvalid_i & (instr_bus_err_i | instr_cheri_err) & ~err_in_fifo_q) begin
+      // the error only goes into the fifo if it's not immediately passed to ID
+      err_in_fifo_q       <= ~fetch_imm;
+      err_is_cheri_q      <= instr_cheri_err;
+      cheri_exc_q         <= instr_cheri_all_exc;
     end
   end
 
@@ -763,6 +809,8 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign fetch_ready = id_in_ready_i & ~stall_dummy_instr;
   end
 
+  // CHERI exception output
+  assign instr_cheri_exc_o = fetch_imm ? instr_cheri_exc_i : cheri_exc_q;
 
   // CHERI module instantiations
   logic [CheriCapWidth-1:0] pcc_setOffset_cap, pcc_setOffset_cap_int;

@@ -176,6 +176,7 @@ module ibex_core import ibex_pkg::*; #(
   logic        instr_bp_taken_id;
   logic        instr_fetch_err;                // Bus error on instr fetch
   logic        instr_fetch_err_plus2;          // Instruction error is misaligned
+  logic        instr_cheri_err;                // Instruction error is CHERI error
   logic        illegal_c_insn_id;              // Illegal compressed instruction sent to ID stage
   logic [31:0] pc_if;                          // Program counter in IF stage
   logic [CheriCapWidth-1:0] pcc_if;            // Program counter capability in IF stage
@@ -308,6 +309,7 @@ module ibex_core import ibex_pkg::*; #(
   logic [CheriExcWidth-1:0] cheri_exceptions_b_ex;
   logic [CheriExcWidth-1:0] cheri_exceptions_lsu;
   logic [CheriExcWidth-1:0] cheri_exceptions_instr;
+  logic [CheriExcWidth-1:0] cheri_exceptions_if; // IFetch exceptions to ID
   logic                     instr_upper_exc, instr_upper_exc_2;
 
   c_exc_cause_e       cheri_exc_cause;
@@ -504,6 +506,7 @@ module ibex_core import ibex_pkg::*; #(
     .instr_bp_taken_o        (instr_bp_taken_id),
     .instr_fetch_err_o       (instr_fetch_err),
     .instr_fetch_err_plus2_o (instr_fetch_err_plus2),
+    .instr_cheri_err_o       (instr_cheri_err),
     .illegal_c_insn_id_o     (illegal_c_insn_id),
     .dummy_instr_id_o        (dummy_instr_id),
     .pc_if_o                 (pc_if),
@@ -512,6 +515,8 @@ module ibex_core import ibex_pkg::*; #(
     .pcc_id_o                (pcc_id),
     .pmp_err_if_i            (pmp_req_err[PMP_I]),
     .pmp_err_if_plus2_i      (pmp_req_err[PMP_I2]),
+
+    .instr_cheri_exc_o       (cheri_exceptions_if),
 
     // control signals
     .instr_valid_clear_i   (instr_valid_clear),
@@ -622,6 +627,7 @@ module ibex_core import ibex_pkg::*; #(
 
     .instr_fetch_err_i      (instr_fetch_err),
     .instr_fetch_err_plus2_i(instr_fetch_err_plus2),
+    .instr_cheri_err_i      (instr_cheri_err),
     .illegal_c_insn_i       (illegal_c_insn_id),
 
     .pc_id_i (pc_id),
@@ -672,6 +678,7 @@ module ibex_core import ibex_pkg::*; #(
     .cheri_exceptions_a_ex_i (cheri_exceptions_a_ex),
     .cheri_exceptions_b_ex_i (cheri_exceptions_b_ex),
     .cheri_exceptions_lsu_i  (cheri_exceptions_lsu),
+    .cheri_exceptions_if_i   (cheri_exceptions_if),
 
     .cheri_exc_cause_o       (cheri_exc_cause),
     .cheri_exc_reg_sel_o     (cheri_exc_reg_sel),

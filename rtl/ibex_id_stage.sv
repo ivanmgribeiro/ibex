@@ -61,6 +61,7 @@ module ibex_id_stage #(
   input  logic                      illegal_c_insn_i,
   input  logic                      instr_fetch_err_i,
   input  logic                      instr_fetch_err_plus2_i,
+  input  logic                      instr_cheri_err_i,
 
   input  logic [31:0]               pc_id_i,
   input  logic [CheriCapWidth-1:0]  pcc_id_i,
@@ -113,6 +114,7 @@ module ibex_id_stage #(
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_a_ex_i,
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_b_ex_i,
   input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_lsu_i,
+  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_if_i,
 
   // CHERI exception cause
   output ibex_pkg::c_exc_cause_e       cheri_exc_cause_o,
@@ -722,6 +724,7 @@ module ibex_id_stage #(
     .instr_bp_taken_i       (instr_bp_taken_i),
     .instr_fetch_err_i      (instr_fetch_err_i),
     .instr_fetch_err_plus2_i(instr_fetch_err_plus2_i),
+    .instr_cheri_err_i      (instr_cheri_err_i),
     .pc_id_i                (pc_id_i),
 
     // to IF-ID pipeline
@@ -753,6 +756,7 @@ module ibex_id_stage #(
     .cheri_exceptions_a_ex_i(cheri_exceptions_a_ex_i),
     .cheri_exceptions_b_ex_i(cheri_exceptions_b_ex_i),
     .cheri_exceptions_lsu_i (cheri_exceptions_lsu_i),
+    .cheri_exceptions_if_i  (cheri_exceptions_if_i),
     .scr_no_asr_i           (scr_no_asr_i),
     .csr_no_asr_i           (csr_no_asr_i),
     .mret_no_asr_i          (mret_no_asr),

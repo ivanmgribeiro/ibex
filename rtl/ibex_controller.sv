@@ -37,6 +37,7 @@ module ibex_controller #(
   input  logic                  instr_bp_taken_i,        // instr was predicted taken branch
   input  logic                  instr_fetch_err_i,       // instr has error
   input  logic                  instr_fetch_err_plus2_i, // instr error is x32
+  input  logic                  instr_cheri_err_i,       // instr has CHERI error
   input  logic [31:0]           pc_id_i,                 // instr address
 
   // to IF-ID pipeline stage
@@ -71,6 +72,7 @@ module ibex_controller #(
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_ex_i,
   input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_lsu_i,
+  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_if_i,
   input  logic                               scr_no_asr_i,
   input  logic                               csr_no_asr_i,
   input  logic                               mret_no_asr_i,
@@ -814,8 +816,14 @@ module ibex_controller #(
           // Exception/fault prioritisation logic will have set exactly 1 X_prio signal
           unique case (1'b1)
             instr_fetch_err_prio: begin
-              exc_cause_o = ExcCauseInstrAccessFault;
-              csr_mtval_o = instr_fetch_err_plus2_i ? (pc_id_i + 32'd2) : pc_id_i;
+              if (instr_cheri_err_i) begin
+                exc_cause_o       = ExcCauseCheri;
+                csr_mtval_o[10:5] = {1'b1, 5'h0}; // register is PCC
+                csr_mtval_o[4:0]  = cheri_exc_cause_o;
+              end else begin
+                exc_cause_o = ExcCauseInstrAccessFault;
+                csr_mtval_o = instr_fetch_err_plus2_i ? (pc_id_i + 32'd2) : pc_id_i;
+              end
             end
             illegal_insn_prio: begin
               exc_cause_o = ExcCauseIllegalInsn;
@@ -1011,6 +1019,8 @@ module ibex_controller #(
     end else if (cheri_exceptions_b_ex_i[TAG_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_TAG_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
+    end else if (cheri_exceptions_if_i[TAG_VIOLATION]) begin
+      cheri_exc_cause_o   = CAUSE_TAG_VIOLATION;
 
     end else if (cheri_exceptions_a_ex_i[SEAL_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_SEAL_VIOLATION;
@@ -1018,6 +1028,8 @@ module ibex_controller #(
     end else if (cheri_exceptions_b_ex_i[SEAL_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_SEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
+    end else if (cheri_exceptions_if_i[SEAL_VIOLATION]) begin
+      cheri_exc_cause_o   = CAUSE_SEAL_VIOLATION;
 
     end else if (cheri_exceptions_a_ex_i[TYPE_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_TYPE_VIOLATION;
@@ -1067,6 +1079,8 @@ module ibex_controller #(
     end else if (cheri_exceptions_b_ex_i[PERMIT_EXECUTE_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_EXECUTE_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
+    end else if (cheri_exceptions_if_i[PERMIT_EXECUTE_VIOLATION]) begin
+      cheri_exc_cause_o   = CAUSE_PERMIT_EXECUTE_VIOLATION;
 
     end else if (cheri_exceptions_a_ex_i[PERMIT_LOAD_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_LOAD_VIOLATION;
@@ -1116,6 +1130,8 @@ module ibex_controller #(
     end else if (cheri_exceptions_b_ex_i[LENGTH_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_LENGTH_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
+    end else if (cheri_exceptions_if_i[LENGTH_VIOLATION]) begin
+      cheri_exc_cause_o   = CAUSE_LENGTH_VIOLATION;
 
     end else if (cheri_exceptions_a_ex_i[UNALIGNED_BASE_VIOLATION]) begin
       cheri_exc_cause_o   = CAUSE_UNALIGNED_BASE_VIOLATION;
