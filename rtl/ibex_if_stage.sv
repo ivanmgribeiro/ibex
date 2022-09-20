@@ -648,14 +648,17 @@ module ibex_if_stage import ibex_pkg::*; #(
       err_in_fifo_q       <= 0;
       err_is_cheri_q      <= 0;
       cheri_exc_q         <= 0;
-    end else if (err_in_fifo_q & if_id_pipe_reg_we & instr_err_out) begin
-      // the error in the FIFO has just been passed on to the ID stage; this
-      // means the fetch FIFO has been cleared (since the error will lead to
-      // a flush) and we need to start saving new errors
+    end else if (pc_set_i) begin
+      // The error for the new PC will only arrive when the response arrives
+      // from memory, so we cannot have a new error in the FIFO this cycle
+      // either
       err_in_fifo_q       <= 0;
+      err_is_cheri_q      <= 0;
     end else if (instr_rvalid_i & (instr_bus_err_i | instr_cheri_err) & ~err_in_fifo_q) begin
-      // the error only goes into the fifo if it's not immediately passed to ID
-      err_in_fifo_q       <= ~fetch_imm;
+      // if there is an incoming instruction that has an error and there's
+      // not been an error before then this is a new error, so save the
+      // exception information
+      err_in_fifo_q       <= 1;
       err_is_cheri_q      <= instr_cheri_err;
       cheri_exc_q         <= instr_cheri_all_exc;
     end
