@@ -144,10 +144,11 @@ int main(int argc, char** argv, char** env) {
                             std::cout << "    reset command" << std::endl;
                         }
                     }
+                } else {
+                  // sleep for 0.1ms before trying to receive another instruction
+                  usleep(100);
                 }
 
-                // sleep for 0.1ms before trying to receive another instruction
-                usleep(100);
             } while (packet->dii_cmd != 0);
         }
 
