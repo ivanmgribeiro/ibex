@@ -113,7 +113,7 @@ module ibex_cheri_memchecker #(
   assign instr_upper_exc_o   = StableOut | data_rvalid_i ? instr_upper_exc_q   : 0;
   assign instr_upper_exc_2_o = StableOut | data_rvalid_i ? instr_upper_exc_2_q : 0;
 
-  assign data_we_o = data_we_i & ~|cheri_mem_exc_d;
+  assign data_we_o = data_we_i & ((data_req_i & data_first_access_i) ? ~(|cheri_mem_exc_d) : ~(|cheri_mem_exc_q));
 
   // CHERI module instantiation
   module_wrap64_isValidCap auth_cap_isValidCap (
