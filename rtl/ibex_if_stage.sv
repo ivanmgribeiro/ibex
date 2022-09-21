@@ -273,7 +273,8 @@ module ibex_if_stage import ibex_pkg::*; #(
       end
       PC_ERET: begin
         fetch_offset_n    = csr_mepc_i;                   // restore PC when returning from EXC
-        pcc_setOffset_cap = scr_mepcc_i;
+        // if mepcc is sealed as a Sentry, unseal it
+        pcc_setOffset_cap = mepcc_getKind_o == 7'h1E ? mepcc_setKind_o : scr_mepcc_i;
       end
       PC_DRET: begin
         fetch_offset_n    = csr_depc_i;
@@ -818,11 +819,15 @@ module ibex_if_stage import ibex_pkg::*; #(
   // CHERI module instantiations
   logic [CheriCapWidth-1:0] pcc_setOffset_cap, pcc_setOffset_cap_int;
   logic [31:0] pcc_newOffset, cheri_target_offset, pcc_getBase_o;
+  logic [CheriCapWidth-1:0] mepcc_setKind_o;
+  logic [6:0] mepcc_getKind_o;
   assign pcc_setOffset_cap_int = pc_set_i ? pcc_setOffset_cap : pcc_q; // update PCC on jumps, otherwise preserve the old one
   assign pcc_newOffset = pc_set_i ? fetch_offset_n : pc_if_o;
   module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap_int, pcc_newOffset, {unused_pcc_setOffset_exact, pcc_if_o});
   module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
   module_wrap64_getBase   pcc_getBase  (pcc_setOffset_cap_int, pcc_getBase_o);
+  module_wrap64_setKind   mepcc_setKind  (scr_mepcc_i, 7'h0F, mepcc_setKind_o);
+  module_wrap64_getKind   mepcc_getKind  (scr_mepcc_i, mepcc_getKind_o);
 
   ////////////////
   // Assertions //
