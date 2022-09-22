@@ -84,6 +84,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic                        illegal_c_insn_id_o,      // compressed decoder thinks this
                                                                 // is an invalid instr
   output logic                        dummy_instr_id_o,         // Instruction is a dummy
+  output logic [CheriCapWidth-1:0]    instr_fetch_auth_o,       // The authority for the current instruction fetch
   output logic [31:0]                 pc_if_o,
   output logic [CheriCapWidth-1:0]    pcc_if_o,
   output logic [31:0]                 pc_id_o,
@@ -154,6 +155,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   // ones that are in the pipeline.
   logic                     err_in_fifo_q;
 
+  // The PCC of the instruction returned by the prefetcher/cache last cycle.
+  // When a jump occurs, this is updated to the jump target (and then not
+  // updated again until after the jump target instruction is returned by the
+  // prefetcher/cache).
   logic [CheriCapWidth-1:0] pcc_q;
 
   // prefetch buffer related signals
@@ -208,7 +213,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic        [7:0] unused_csr_mtvec;
   logic              unused_exc_cause;
 
-  logic              unused_pcc_setOffset_exact;
+  logic              unused_pcc_setOffset_exact, unused_jump_pcc_setOffset_exact;
 
   assign unused_boot_addr = boot_addr_i[7:0];
   assign unused_csr_mtvec = csr_mtvec_i[7:0];
@@ -232,7 +237,8 @@ module ibex_if_stage import ibex_pkg::*; #(
         exc_pcc = scr_mtcc_i;
       end
       EXC_PC_IRQ: begin
-        exc_pc  = { csr_mtvec_i[31:8], 1'b0, irq_vec, 2'b00 };
+        //exc_pc  = { csr_mtvec_i[31:8], 1'b0, irq_vec, 2'b00 };
+        exc_pc  = { csr_mtvec_i[31:8], 6'b0, 2'b00 };
         exc_pcc = scr_mtcc_i;
       end
       EXC_PC_DBD: begin
@@ -261,35 +267,35 @@ module ibex_if_stage import ibex_pkg::*; #(
       PC_BOOT: begin
         // TODO TestRIG does not support having an offset of 80 in the reset PC
         fetch_offset_n    = boot_addr_i;
-        pcc_setOffset_cap = CheriAlmightyCap;
+        jump_pcc_setOffset_cap = CheriAlmightyCap;
       end
       PC_JUMP: begin
         fetch_offset_n    = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
-        pcc_setOffset_cap = branch_is_cap_i ? branch_target_ex_i : pcc_q;
+        jump_pcc_setOffset_cap = branch_is_cap_i ? branch_target_ex_i : pcc_q;
       end
       PC_EXC: begin
         fetch_offset_n    = exc_pc;                       // set PC to exception handler
-        pcc_setOffset_cap = exc_pcc;
+        jump_pcc_setOffset_cap = exc_pcc;
       end
       PC_ERET: begin
         fetch_offset_n    = csr_mepc_i;                   // restore PC when returning from EXC
         // if mepcc is sealed as a Sentry, unseal it
-        pcc_setOffset_cap = mepcc_getKind_o == 7'h1E ? mepcc_setKind_o : scr_mepcc_i;
+        jump_pcc_setOffset_cap = mepcc_getKind_o == 7'h1E ? mepcc_setKind_o : scr_mepcc_i;
       end
       PC_DRET: begin
         fetch_offset_n    = csr_depc_i;
-        pcc_setOffset_cap = pcc_q;
+        jump_pcc_setOffset_cap = pcc_q;
       end
       // Without branch predictor will never get pc_mux_internal == PC_BP. We still handle no branch
       // predictor case here to ensure redundant mux logic isn't synthesised.
       PC_BP: begin
         // TODO TestRIG does not support having an offset of 80 in the reset PC
-        fetch_offset_n    = BranchPredictor ? predict_branch_addr - pcc_getBase_o : boot_addr_i;
-        pcc_setOffset_cap = pcc_q;
+        fetch_offset_n    = BranchPredictor ? predict_branch_addr - nojump_pcc_getBase_o : boot_addr_i;
+        jump_pcc_setOffset_cap = pcc_q;
       end
       default: begin
         fetch_offset_n    = boot_addr_i;
-        pcc_setOffset_cap = pcc_q;
+        jump_pcc_setOffset_cap = pcc_q;
       end
     endcase
   end
@@ -347,7 +353,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   // The prefetchers (cache and prefetch buffer) handle _addresses_ since they directly control the
   // memory interface
   assign prefetch_branch = branch_req | nt_branch_mispredict_i;
-  assign prefetch_addr   = branch_req ? {fetch_offset_n[31:1], 1'b0} + pcc_getBase_o : nt_branch_addr_i;
+  assign prefetch_addr   = branch_req ? {fetch_offset_n[31:1], 1'b0} + new_pcc_getBase_o : nt_branch_addr_i;
 
   // The fetch_valid signal that comes out of the icache or prefetch buffer should be squashed if we
   // had a misprediction.
@@ -476,7 +482,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   // the prefetchers (ICache or prefetch buffer) control what the next
   // instruction is, so we need to calculate the PC based on the address that
   // they give out
-  assign pc_if_o     = if_instr_addr - pcc_getBase_o;
+  assign pc_if_o     = if_instr_addr - nojump_pcc_getBase_o;
   // pcc_if_o is assigned in the CHERI instantiations;
   assign if_busy_o   = prefetch_busy;
 
@@ -607,7 +613,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         pcc_id_o                 <= CheriNullCap;
         pcc_q                    <= CheriAlmightyCap;
       end else begin
-        pcc_q <= pcc_if_o;
+        pcc_q <= new_pcc;
         if (if_id_pipe_reg_we) begin
           instr_rdata_id_o         <= instr_out;
           // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -619,13 +625,13 @@ module ibex_if_stage import ibex_pkg::*; #(
           instr_is_compressed_id_o <= instr_is_compressed_out;
           illegal_c_insn_id_o      <= illegal_c_instr_out;
           pc_id_o                  <= pc_if_o;
-          pcc_id_o                 <= pcc_if_o;
+          pcc_id_o                 <= new_pcc;
         end
       end
     end
   end else begin : g_instr_rdata_nr
     always_ff @(posedge clk_i) begin
-      pcc_q <= pcc_if_o;
+      pcc_q <= new_pcc;
       if (if_id_pipe_reg_we) begin
         instr_rdata_id_o         <= instr_out;
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
@@ -637,7 +643,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         instr_is_compressed_id_o <= instr_is_compressed_out;
         illegal_c_insn_id_o      <= illegal_c_instr_out;
         pc_id_o                  <= pc_if_o;
-        pcc_id_o                 <= pcc_if_o;
+        pcc_id_o                 <= new_pcc;
       end
     end
   end
@@ -816,16 +822,47 @@ module ibex_if_stage import ibex_pkg::*; #(
   // CHERI exception output
   assign instr_cheri_exc_o = fetch_imm ? instr_cheri_exc_i : cheri_exc_q;
 
+  // The PCC that might be jumped to (depending on whether the pc_set_i signal
+  // is high this cycle)
+  logic [CheriCapWidth-1:0] jump_pcc;
+  logic [CheriCapWidth-1:0] jump_pcc_setOffset_cap;
+  logic [31:0]              jump_pcc_newOffset;
+
+  // The PCC assuming no jump (ie the PCC of the instruction being returned by
+  // the prefetcher/cache this cycle)
+  logic [CheriCapWidth-1:0] nojump_pcc;
+  logic [31:0]              nojump_pcc_getBase_o;
+
+  // The new PCC (already muxed between continuing with current PCC or using
+  // the calculated jump PCC)
+  // On jump, this is the PCC of the instruction that is being requested from
+  // memory.
+  // When not jumping, this is the PCC of the instruction that is being
+  // returned by the prefetcher/cache.
+  logic [CheriCapWidth-1:0] new_pcc;
+  logic [31:0]              new_pcc_getBase_o;
+
+  // The offset of the current branch target, used to get the next PC when
+  // a capability jump occurs
+  logic [31:0] cheri_target_offset;
+
+  assign new_pcc            = pc_set_i ? jump_pcc : pcc_if_o;
+  assign pcc_if_o           = nojump_pcc;
+  assign instr_fetch_auth_o = new_pcc;
+
   // CHERI module instantiations
-  logic [CheriCapWidth-1:0] pcc_setOffset_cap, pcc_setOffset_cap_int;
-  logic [31:0] pcc_newOffset, cheri_target_offset, pcc_getBase_o;
+  module_wrap64_setOffset pcc_setOffset(pcc_q, pc_if_o, {unused_pcc_setOffset_exact, nojump_pcc});
+  module_wrap64_setOffset jump_pcc_setOffset(jump_pcc_setOffset_cap, fetch_offset_n, {unused_jump_pcc_setOffset_exact, jump_pcc});
+  module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
+  module_wrap64_getBase   new_pcc_getBase  (new_pcc, new_pcc_getBase_o);
+  // The base is not changed by modifying the offset, so just use the
+  // registered value
+  module_wrap64_getBase   pcc_getBase (pcc_q, nojump_pcc_getBase_o);
+
+
+  // used to unseal MEPCC when it is a sentry
   logic [CheriCapWidth-1:0] mepcc_setKind_o;
   logic [6:0] mepcc_getKind_o;
-  assign pcc_setOffset_cap_int = pc_set_i ? pcc_setOffset_cap : pcc_q; // update PCC on jumps, otherwise preserve the old one
-  assign pcc_newOffset = pc_set_i ? fetch_offset_n : pc_if_o;
-  module_wrap64_setOffset pcc_setOffset(pcc_setOffset_cap_int, pcc_newOffset, {unused_pcc_setOffset_exact, pcc_if_o});
-  module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
-  module_wrap64_getBase   pcc_getBase  (pcc_setOffset_cap_int, pcc_getBase_o);
   module_wrap64_setKind   mepcc_setKind  (scr_mepcc_i, 7'h0F, mepcc_setKind_o);
   module_wrap64_getKind   mepcc_getKind  (scr_mepcc_i, mepcc_getKind_o);
 
