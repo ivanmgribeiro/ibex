@@ -302,7 +302,8 @@ module ibex_cheri_alu #(
               exceptions_b_o[         SEAL_VIOLATION] = b_isSealed_o;
               exceptions_b_o[         TYPE_VIOLATION] = b_getAddr_o != {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o};
               exceptions_b_o[PERMIT_UNSEAL_VIOLATION] = exceptions_b[PERMIT_UNSEAL_VIOLATION];
-              exceptions_b_o[       LENGTH_VIOLATION] = {1'b0, b_getAddr_o} >= b_getTop_o;
+              exceptions_b_o[       LENGTH_VIOLATION] = exceptions_b[       LENGTH_VIOLATION]
+                                                      | {1'b0, b_getAddr_o} >= b_getTop_o;
 
               if (Verbosity) begin
                 $display("cunseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
