@@ -862,7 +862,7 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   // used to unseal MEPCC when it is a sentry
   logic [CheriCapWidth-1:0] mepcc_setKind_o;
-  logic [6:0] mepcc_getKind_o;
+  logic [CheriKindWidth-1:0] mepcc_getKind_o;
   module_wrap64_setKind   mepcc_setKind  (scr_mepcc_i, 7'h0F, mepcc_setKind_o);
   module_wrap64_getKind   mepcc_getKind  (scr_mepcc_i, mepcc_getKind_o);
 

@@ -36,12 +36,12 @@ module ibex_cheri_memchecker #(
   import ibex_pkg::*;
 
   // CHERI module inputs & outputs
-  logic [31:0] auth_cap_getAddr_o;
-  logic        auth_cap_isValidCap_o;
-  logic        auth_cap_isSealed_o;
-  logic [31:0] auth_cap_getBase_o;
-  logic [32:0] auth_cap_getTop_o;
-  logic [30:0] auth_cap_getPerms_o;
+  logic [31:0]                auth_cap_getAddr_o;
+  logic                       auth_cap_isValidCap_o;
+  logic                       auth_cap_isSealed_o;
+  logic [31:0]                auth_cap_getBase_o;
+  logic [32:0]                auth_cap_getTop_o;
+  logic [CheriPermsWidth-1:0] auth_cap_getPerms_o;
 
   logic [CheriExcWidth-1:0] cheri_mem_exc_q, cheri_mem_exc_d;
   logic                     instr_upper_exc_q, instr_upper_exc_d;
@@ -121,12 +121,12 @@ module ibex_cheri_memchecker #(
     .wrap64_isValidCap    (auth_cap_isValidCap_o)
   );
 
-  logic [6:0] auth_cap_getKind_o;
+  logic [CheriKindWidth-1:0] auth_cap_getKind_o;
   module_wrap64_getKind auth_cap_getKind(
     .wrap64_getKind_cap(auth_cap_i),
     .wrap64_getKind    (auth_cap_getKind_o)
   );
-  assign auth_cap_isSealed_o = auth_cap_getKind_o[6:4] != 3'b000;
+  assign auth_cap_isSealed_o = auth_cap_getKind_o[CheriKindWidth-1:CheriOTypeWidth] != '0;
 
   module_wrap64_getBase auth_cap_getBase(
     .wrap64_getBase_cap(auth_cap_i),

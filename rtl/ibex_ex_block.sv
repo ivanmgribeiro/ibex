@@ -258,14 +258,13 @@ module ibex_ex_block #(
     .operand_a_i   (cheri_operand_a_i),
     .operand_b_i   (cheri_operand_b_i),
 
-    // TODO disconnected for now, connect these later on to the ALU
     .alu_operand_a_o(cheri_int_alu_operand_a),
     .alu_operand_b_o(cheri_int_alu_operand_b),
     .alu_operator_o (cheri_int_alu_operator),
     .alu_result_i   (alu_adder_result_ext[33:1]),
     .btalu_result_i (branch_target),
 
-    .result_o  (cheri_result_o),
+    .result_o        (cheri_result_o),
     .wrote_capability(cheri_wrote_capability),
 
     .exceptions_a_o (cheri_exceptions_a_o),

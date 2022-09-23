@@ -33,12 +33,12 @@ module ibex_cheri_alu #(
   // Constant parameters
   // TODO perhaps these should be moved to ibex_pkg?
   //    (or perhaps ibex_cheri_pkg?)
-  localparam int unsigned ExceptionWidth  = 22;
-  localparam int unsigned KindWidth      = 7;
-  localparam int unsigned OTypeWidth      = 4;
+  localparam int unsigned ExceptionWidth  = CheriExcWidth;
+  localparam int unsigned KindWidth       = CheriKindWidth;
+  localparam int unsigned OTypeWidth      = CheriOTypeWidth;
   localparam int unsigned RegsPerQuarter  = 4;
   localparam int unsigned FlagWidth       = 1;
-  localparam int unsigned PermsWidth      = 31;
+  localparam int unsigned PermsWidth      = CheriPermsWidth;
   localparam int unsigned LengthWidth     = 33;
   localparam int unsigned OffsetWidth     = 32;
   localparam int unsigned BaseWidth       = 32;
@@ -215,7 +215,7 @@ module ibex_cheri_alu #(
               // operand a is the data that is (maybe) going to be written to the register
               // this operation is implemented in other places since there's nothing the ALU can do
               // for it
-              result_o = operand_a_i;
+              result_o         = operand_a_i;
               wrote_capability = 1'b1;
 
               if (Verbosity) begin
@@ -225,12 +225,13 @@ module ibex_cheri_alu #(
 
             C_SET_BOUNDS: begin
               a_setBounds_i = operand_b_int;
-              result_o = a_setBounds_o[CheriCapWidth-1:0];
+
+              result_o         = a_setBounds_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
               alu_operand_a_o = a_getAddr_o;
               alu_operand_b_o = operand_b_int;
-              alu_operator_o = ALU_ADD;
+              alu_operator_o  = ALU_ADD;
 
               exceptions_a_o[   TAG_VIOLATION] = exceptions_a[  TAG_VIOLATION];
               exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[ SEAL_VIOLATION];
@@ -244,12 +245,13 @@ module ibex_cheri_alu #(
 
             C_SET_BOUNDS_EXACT: begin
               a_setBounds_i = operand_b_int;
-              result_o = a_setBounds_o[CheriCapWidth-1:0];
+
+              result_o         = a_setBounds_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
               alu_operand_a_o = a_getAddr_o;
               alu_operand_b_o = operand_b_int;
-              alu_operator_o = ALU_ADD;
+              alu_operator_o  = ALU_ADD;
 
               exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
               exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
@@ -264,9 +266,9 @@ module ibex_cheri_alu #(
 
             C_SEAL: begin
               a_setKind_cap_i = operand_a_i;
-              // TODO this will need to be changed
-              a_setKind_i = b_getAddr_o[KindWidth-1:0];
-              result_o = a_setKind_o;
+              a_setKind_i     = b_getAddr_o[KindWidth-1:0];
+
+              result_o         = a_setKind_o;
               wrote_capability = 1'b1;
 
               exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
@@ -285,11 +287,12 @@ module ibex_cheri_alu #(
             end
 
             C_UNSEAL: begin
-              a_setPerms_i = a_getPerms_o;
+              a_setPerms_i                    = a_getPerms_o;
               a_setPerms_i[PermitGlobalIndex] = a_getPerms_o[PermitGlobalIndex] & b_getPerms_o[PermitGlobalIndex];
-              a_setKind_cap_i = a_setPerms_o;
-              a_setKind_i = {KindWidth{1'b1}};
-              result_o = a_setKind_o;
+              a_setKind_cap_i                 = a_setPerms_o;
+              a_setKind_i                     = {KindWidth{1'b1}};
+
+              result_o         = a_setKind_o;
               wrote_capability = 1'b1;
 
               exceptions_a_o[ TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
@@ -308,7 +311,8 @@ module ibex_cheri_alu #(
 
             C_AND_PERM: begin
               a_setPerms_i = a_getPerms_o & operand_b_i[PermsWidth-1:0];
-              result_o = a_setPerms_o;
+
+              result_o         = a_setPerms_o;
               wrote_capability = 1'b1;
 
               exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
@@ -321,7 +325,8 @@ module ibex_cheri_alu #(
 
             C_SET_FLAGS: begin
               a_setFlags_i = operand_b_i[FlagWidth-1:0];
-              result_o = a_setFlags_o;
+
+              result_o         = a_setFlags_o;
               wrote_capability = 1'b1;
 
               exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
@@ -334,7 +339,7 @@ module ibex_cheri_alu #(
             C_SET_OFFSET: begin
               a_setOffset_i = operand_b_int;
 
-              result_o = a_setOffset_o[CheriCapWidth-1:0];
+              result_o         = a_setOffset_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
               exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
@@ -346,8 +351,8 @@ module ibex_cheri_alu #(
 
             C_SET_ADDR: begin
               a_setAddr_i = operand_b_i[IntWidth-1:0];
-              result_o = a_setAddr_o[CheriCapWidth-1:0];
 
+              result_o         = a_setAddr_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
               exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
@@ -358,13 +363,12 @@ module ibex_cheri_alu #(
             end
 
             C_INC_OFFSET: begin
-              // TODO remove adders here?
               a_incOffset_i = operand_b_int;
-              result_o = a_incOffset_o[CheriCapWidth-1:0];
+
+              result_o                  = a_incOffset_o[CheriCapWidth-1:0];
               // only preserve the tag if the result was "exact"
               result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_incOffset_o[CheriCapWidth];
-
-              wrote_capability = 1'b1;
+              wrote_capability          = 1'b1;
 
               exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
@@ -375,8 +379,7 @@ module ibex_cheri_alu #(
 
             C_TO_PTR: begin
               result_o[IntWidth-1:0] = a_isValidCap_o ? a_getAddr_o - b_getBase_o : IntWidth'(1'b0);
-
-              wrote_capability = 1'b0;
+              wrote_capability       = 1'b0;
 
               exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
@@ -388,17 +391,11 @@ module ibex_cheri_alu #(
             end
 
             C_FROM_PTR: begin
-              a_setOffset_i = operand_b_i[IntWidth-1:0];
-
-              alu_operand_a_o = a_getBase_o;
-              alu_operand_b_o = operand_b_int;
-              alu_operator_o = ALU_ADD;
-
-              result_o = operand_b_i == '0 ? operand_b_i
-                       : a_setOffset_o[CheriCapWidth-1:0];
-                       //: {{(CheriCapWidth-IntWidth){1'b0}}, alu_result_i[IntWidth-1:0]};
+              a_setOffset_i = operand_b_int;
 
               wrote_capability = operand_b_i != '0;
+              result_o         = operand_b_int == '0 ? '0
+                                                     : a_setOffset_o[CheriCapWidth-1:0];
 
               exceptions_a_o[ TAG_VIOLATION] = operand_b_i != 0 && exceptions_a[ TAG_VIOLATION];
               exceptions_a_o[SEAL_VIOLATION] = operand_b_i != 0 && exceptions_a[SEAL_VIOLATION];
@@ -411,10 +408,10 @@ module ibex_cheri_alu #(
             C_SUB: begin
               alu_operand_a_o = a_getAddr_o;
               alu_operand_b_o = b_getAddr_o;
-              alu_operator_o = ALU_SUB;
+              alu_operator_o  = ALU_SUB;
 
-              result_o[IntWidth-1:0] = a_getAddr_o - b_getAddr_o;
-              wrote_capability = 1'b0;
+              result_o[IntWidth-1:0] = alu_result_i[IntWidth-1:0];
+              wrote_capability       = 1'b0;
 
               if (Verbosity) begin
                 $display("csub output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -426,7 +423,10 @@ module ibex_cheri_alu #(
               // upper bits of kind tell us it's unsealed
               b_setKind_i = b_getKind_o[KindWidth-1:OTypeWidth] == 'h1 ? b_getKind_o
                                                                        : {3'h0, 4'hX};
-              result_o = b_setKind_o | {1'b1, {CheriCapWidth-1{1'b0}}};
+
+              result_o                  = b_setKind_o;
+              // always tag the resulting capability
+              result_o[CheriCapWidth-1] = 1'b1;
               wrote_capability = 1'b1;
 
               exceptions_a_o[             TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
@@ -444,41 +444,14 @@ module ibex_cheri_alu #(
             end
 
             C_COPY_TYPE: begin
-              /*
-                in implementing this instruction, i've followed this code rather than the one in the sail spec
-                this should be functionally equivalent, but i've included it just in case i've made a blunder
-
-                let cb_val = readCapReg(cb);
-                let ct_val = readCapReg(ct);
-                let cb_base = getCapBase(cb_val);
-                let cb_top = getCapTop(cb_val);
-                let ct_otype = unsigned(ct_val.otype);
-                if not (cb_val.tag) then {
-                  handle_cheri_reg_exception(CapEx_TagViolation, cb);
-                  RETIRE_FAIL
-                } else if cb_val.sealed then {
-                  handle_cheri_reg_exception(CapEx_SealViolation, cb);
-                  RETIRE_FAIL
-                } else if ct_val.sealed && ct_otype < cb_base then {
-                  handle_cheri_reg_exception(CapEx_LengthViolation, cb);
-                  RETIRE_FAIL
-                } else if ct_val.sealed && ct_otype >= cb_top then {
-                  handle_cheri_reg_exception(CapEx_LengthViolation, cb);
-                  RETIRE_FAIL
-                } else {
-                  let (success, cap) = setCapOffset(cb_val, to_bits(64, ct_otype - cb_base));
-                  assert(success, "CopyType: offset is in bounds so should be representable");
-                  writeCapReg(cd, ct_val.sealed ? cap : int_to_cap(0xffffffffffffffff));
-                  RETIRE_SUCCESS
-                }
-              */
-
               // unsealed, sentry and reserved otypes are not "software" types
               logic b_has_software_type = b_isSealedWithType_o;
               a_setAddr_i = {{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o};
-              result_o = b_has_software_type ? a_setAddr_o[CheriCapWidth-1:0]
-                                             : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
+
               wrote_capability = b_has_software_type;
+              result_o         = b_has_software_type ? a_setAddr_o[CheriCapWidth-1:0]
+                                                     // sign-extend the otype
+                                                     : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
 
               exceptions_a_o[   TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
               exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
@@ -494,12 +467,13 @@ module ibex_cheri_alu #(
 
             C_C_SEAL: begin
               // whether B passes the conditions to seal
-              logic b_is_ok = b_isValidCap_o & b_isInBounds_o & b_getAddr_o != {IntWidth{1'b1}};
-              logic a_is_ok = a_isValidCap_o & ~a_isSealed_o;
+              logic b_is_ok   = b_isValidCap_o & b_isInBounds_o & b_getAddr_o != {IntWidth{1'b1}};
+              logic a_is_ok   = a_isValidCap_o & ~a_isSealed_o;
               a_setKind_cap_i = operand_a_i;
-              // TODO this will need to be changed
-              a_setKind_i = b_getAddr_o[KindWidth-1:0];
-              result_o = !b_is_ok | !a_is_ok ? operand_a_i : a_setKind_o;
+              a_setKind_i     = b_getAddr_o[KindWidth-1:0];
+
+              // if both are OK then save the new value, otherwise save the old value
+              result_o         = b_is_ok & a_is_ok ? a_setKind_o : operand_a_i;
               wrote_capability = 1'b1;
 
               exceptions_a_o[TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
@@ -515,83 +489,32 @@ module ibex_cheri_alu #(
             end
 
             C_TEST_SUBSET: begin
-              result_o[0] = a_isValidCap_o != b_isValidCap_o              ? 1'b0
-                          : b_getBase_o < a_getBase_o                     ? 1'b0
-                          : b_getTop_o > a_getTop_o                       ? 1'b0
-                          : (b_getPerms_o & a_getPerms_o) != b_getPerms_o ? 1'b0
-                          : 1'b1;
               wrote_capability = 1'b0;
+              result_o[0]      = a_isValidCap_o != b_isValidCap_o              ? 1'b0
+                               : b_getBase_o < a_getBase_o                     ? 1'b0
+                               : b_getTop_o > a_getTop_o                       ? 1'b0
+                               : (b_getPerms_o & a_getPerms_o) != b_getPerms_o ? 1'b0
+                               : 1'b1;
 
               if (Verbosity) begin
                 $display("ctestsubset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
               end
             end
 
-            /* This was the old way of implementing CInvoke, which had several
-             * versions, and is now no longer used.
-            //TWO_SOURCE: begin
-              // when trying to read this using the Sail definitions, cs is my operand_a and cb is my operand_b
-              //unique case (ccall_type_i)
-              //  CCALL_CYCLE1: begin
-              //    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
-
-              //    exceptions_a_o =( exceptions_a[TAG_VIOLATION]                                            ) << TAG_VIOLATION
-              //                   |( !exceptions_a[SEAL_VIOLATION]                                          ) << SEAL_VIOLATION // we want it to be sealed
-              //                   |( a_getKind_o != b_getKind_o                                             ) << TYPE_VIOLATION
-              //                   |( exceptions_a[PERMIT_CCALL_VIOLATION]                                   ) << PERMIT_CCALL_VIOLATION
-              //                   |( exceptions_a[PERMIT_EXECUTE_VIOLATION]                                 ) << PERMIT_EXECUTE_VIOLATION
-              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} < a_getBase_o                   ) << LENGTH_VIOLATION
-              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} + `MIN_INSTR_BYTES > a_getTop_o ) << LENGTH_VIOLATION;
-
-              //    exceptions_b_o =( exceptions_b[TAG_VIOLATION]             ) << TAG_VIOLATION
-              //                   |( !exceptions_b[SEAL_VIOLATION]           ) << SEAL_VIOLATION
-              //                   |( !exceptions_b[PERMIT_EXECUTE_VIOLATION] ) << PERMIT_EXECUTE_VIOLATION
-              //                   |( exceptions_b[PERMIT_CCALL_VIOLATION]    ) << PERMIT_CCALL_VIOLATION;
-
-              //    a_setKind_cap_i = a_setAddr_o;
-              //    a_setKind_i = {KindWidth{1'b1}};
-              //    wrote_capability = 1'b1;
-              //    result_o = a_setKind_o;
-              //  end
-
-              //  CCALL_CYCLE2: begin
-              //    a_setAddr_i = {a_getAddr_o[IntWidth-1:1], 1'b0};
-
-              //    exceptions_a_o =( exceptions_a[TAG_VIOLATION]                                            ) << TAG_VIOLATION
-              //                   |( !exceptions_a[SEAL_VIOLATION]                                          ) << SEAL_VIOLATION // we want it to be sealed
-              //                   |( a_getKind_o != b_getKind_o                                             ) << TYPE_VIOLATION
-              //                   |( exceptions_a[PERMIT_CCALL_VIOLATION]                                   ) << PERMIT_CCALL_VIOLATION
-              //                   |( exceptions_a[PERMIT_EXECUTE_VIOLATION]                                 ) << PERMIT_EXECUTE_VIOLATION
-              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} < a_getBase_o                   ) << LENGTH_VIOLATION
-              //                   |( {a_getAddr_o[IntWidth-1:1], 1'b0} + `MIN_INSTR_BYTES > a_getTop_o ) << LENGTH_VIOLATION;
-
-              //    exceptions_b_o =( exceptions_b[TAG_VIOLATION]                ) << TAG_VIOLATION
-              //                   |( (!exceptions_b[SEAL_VIOLATION]             ) << SEAL_VIOLATION)
-              //                   |( ((!exceptions_b[PERMIT_EXECUTE_VIOLATION]) ) << PERMIT_EXECUTE_VIOLATION)
-              //                   |( exceptions_b[PERMIT_CCALL_VIOLATION]       ) << PERMIT_CCALL_VIOLATION;
-
-              //    b_setKind_i = {KindWidth{1'b1}};
-              //    wrote_capability = 1'b1;
-              //    result_o = b_setKind_o;
-              //  end
-              //endcase
-            //end
-            */
-
             C_INVOKE: begin
               logic [IntWidth-1:0] new_addr = {a_getAddr_o[IntWidth-1:1], 1'b0};
               // first cycle operations (unseal capability a and clear lowest bit)
               // capability a is the new PCC
-              a_setAddr_i = new_addr;
+              a_setAddr_i     = new_addr;
               a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0]; // discard "exact" bit
-              a_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability a
+              a_setKind_i     = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability a
 
               // second cycle operations (unseal capability b)
               // capability b is the data capability to be placed in register 31
               b_setKind_i = { {(KindWidth-OTypeWidth){1'b0}}, {OTypeWidth{1'b1}} }; // unseal capability b
 
               wrote_capability = 1'b1;
-              result_o = instr_first_cycle_i ? a_setKind_o : b_setKind_o;
+              result_o         = instr_first_cycle_i ? a_setKind_o : b_setKind_o;
 
               // check if we can fetch a full instruction with the bounds on this capability
               alu_operand_a_o = new_addr;
@@ -620,7 +543,7 @@ module ibex_cheri_alu #(
               case(s_a_d_opcode_i)
                 C_GET_PERM: begin
                   result_o[PermsWidth-1:0] = a_getPerms_o;
-                  wrote_capability = 1'b0;
+                  wrote_capability         = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgetperm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -630,9 +553,9 @@ module ibex_cheri_alu #(
                 C_GET_TYPE: begin
                   // if the type is a reserved one (ie it is not a software
                   // one), zero-extend else sign-extend
+                  wrote_capability       = 1'b0;
                   result_o[IntWidth-1:0] = ~a_isSealedWithType_o ? {{(IntWidth-OTypeWidth){a_getOType_o[OTypeWidth-1]}}, a_getOType_o}
                                                                  : {{(IntWidth-OTypeWidth){1'b0}},                       a_getOType_o};
-                  wrote_capability = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgettype output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -640,8 +563,8 @@ module ibex_cheri_alu #(
                 end
 
                 C_GET_BASE: begin
+                  wrote_capability       = 1'b0;
                   result_o[IntWidth-1:0] = a_getBase_o;
-                  wrote_capability = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgetbase output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -649,9 +572,9 @@ module ibex_cheri_alu #(
                 end
 
                 C_GET_LEN: begin
+                  wrote_capability       = 1'b0;
                   result_o[IntWidth-1:0] = a_getLength_o[LengthWidth-1] ? {IntWidth{1'b1}}
                                                                         : a_getLength_o[IntWidth-1:0];
-                  wrote_capability = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgetlen output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -659,7 +582,7 @@ module ibex_cheri_alu #(
                 end
 
                 C_GET_TAG: begin
-                  result_o[0] = a_isValidCap_o;
+                  result_o[0]      = a_isValidCap_o;
                   wrote_capability = 1'b0;
 
                   if (Verbosity) begin
@@ -668,7 +591,7 @@ module ibex_cheri_alu #(
                 end
 
                 C_GET_SEALED: begin
-                  result_o[0] = a_isSealed_o;
+                  result_o[0]      = a_isSealed_o;
                   wrote_capability = 1'b0;
 
                   if (Verbosity) begin
@@ -678,7 +601,7 @@ module ibex_cheri_alu #(
 
                 C_GET_OFFSET: begin
                   result_o[IntWidth-1:0] = a_getOffset_o;
-                  wrote_capability = 1'b0;
+                  wrote_capability       = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgetoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -687,7 +610,7 @@ module ibex_cheri_alu #(
 
                 C_GET_FLAGS: begin
                   result_o[FlagWidth-1:0] = a_getFlags_o;
-                  wrote_capability = 1'b0;
+                  wrote_capability        = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgetflags output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -695,7 +618,7 @@ module ibex_cheri_alu #(
                 end
 
                 C_MOVE: begin
-                  result_o = operand_a_i;
+                  result_o         = operand_a_i;
                   wrote_capability = 1'b1;
 
                   if (Verbosity) begin
@@ -704,8 +627,8 @@ module ibex_cheri_alu #(
                 end
 
                 C_CLEAR_TAG: begin
-                  a_setValidCap_i = 1'b0;
-                  result_o = a_setValidCap_o;
+                  a_setValidCap_i  = 1'b0;
+                  result_o         = a_setValidCap_o;
                   wrote_capability = 1'b1;
 
                   if (Verbosity) begin
@@ -731,14 +654,14 @@ module ibex_cheri_alu #(
                     // calculate the target address
                     alu_operand_a_o = a_getAddr_o;
                     alu_operand_b_o = operand_b_int;
-                    alu_operator_o = ALU_ADD;
+                    alu_operator_o  = ALU_ADD;
 
                     // set the lowest bit of the address to 0
                     a_setAddr_i = {alu_result_i[31:1], 1'b0};
 
                     // unseal the capability
                     a_setKind_cap_i = a_setAddr_o[CheriCapWidth-1:0];
-                    a_setKind_i = 7'h0F;
+                    a_setKind_i     = 7'h0F;
 
                     result_o = a_setKind_o;
                   end else begin
@@ -785,7 +708,7 @@ module ibex_cheri_alu #(
 
                 C_GET_ADDR: begin
                   result_o[IntWidth-1:0] = a_getAddr_o;
-                  wrote_capability = 1'b0;
+                  wrote_capability       = 1'b0;
 
                   if (Verbosity) begin
                     $display("cgetaddr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -794,8 +717,9 @@ module ibex_cheri_alu #(
 
                 C_SEAL_ENTRY: begin
                   a_setKind_cap_i = operand_a_i;
-                  a_setKind_i = 7'h1E;
-                  result_o = a_setKind_o;
+                  a_setKind_i     = 7'h1E;
+
+                  result_o         = a_setKind_o;
                   wrote_capability = 1'b1;
 
                   exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
@@ -805,14 +729,16 @@ module ibex_cheri_alu #(
 
                 C_ROUND_REP_LEN: begin
                   a_getRepLen_i = operand_a_i[IntWidth-1:0];
+
                   result_o[IntWidth-1:0] = a_getRepLen_o;
-                  wrote_capability = 1'b0;
+                  wrote_capability       = 1'b0;
                 end
 
                 C_REP_ALIGN_MASK: begin
-                  a_getRepAlignMask_i = operand_a_i[IntWidth-1:0];
+                  a_getRepAlignMask_i    = operand_a_i[IntWidth-1:0];
+
                   result_o[IntWidth-1:0] = a_getRepAlignMask_o;
-                  wrote_capability = 1'b0;
+                  wrote_capability       = 1'b0;
                 end
 
                 default: begin
@@ -829,10 +755,11 @@ module ibex_cheri_alu #(
 
         C_INC_OFFSET_IMM: begin
           a_incOffset_i = operand_b_int;
-          result_o = a_incOffset_o[CheriCapWidth-1:0];
+
+          result_o                  = a_incOffset_o[CheriCapWidth-1:0];
           // only preserve the tag if the result was "exact"
           result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_incOffset_o[CheriCapWidth];
-          wrote_capability = 1'b1;
+          wrote_capability          = 1'b1;
 
           exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
 
@@ -844,12 +771,13 @@ module ibex_cheri_alu #(
         C_SET_BOUNDS_IMM: begin
           // need to truncate input since we want it to be unsigned
           a_setBounds_i = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
-          result_o = a_setBounds_o[CheriCapWidth-1:0];
+
+          result_o         = a_setBounds_o[CheriCapWidth-1:0];
           wrote_capability = 1'b1;
 
           alu_operand_a_o = a_getAddr_o;
           alu_operand_b_o = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
-          alu_operator_o = ALU_ADD;
+          alu_operator_o  = ALU_ADD;
 
           exceptions_a_o[   TAG_VIOLATION] = exceptions_a[   TAG_VIOLATION];
           exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[  SEAL_VIOLATION];

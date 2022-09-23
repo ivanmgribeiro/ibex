@@ -312,6 +312,9 @@ package ibex_pkg;
 
   // TODO perhaps there is a better way of representing these
   parameter int unsigned CheriExcWidth      = 20;
+  parameter int unsigned CheriKindWidth     = 7;
+  parameter int unsigned CheriOTypeWidth    = 4;
+  parameter int unsigned CheriPermsWidth    = 31;
 
   parameter int unsigned CheriMaxOType      = 'hb;
 

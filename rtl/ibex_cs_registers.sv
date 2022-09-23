@@ -1932,13 +1932,13 @@ module ibex_cs_registers #(
   // need to do some extra work once we get the output of getKind to see
   // whether the capability was sealed
   // TODO replace hardwired size with parameter
-  logic [6:0] getKind_o;
+  logic [CheriKindWidth-1:0] getKind_o;
   module_wrap64_getKind module_getKind (
     .wrap64_getKind_cap (isSealed_cap_i),
     .wrap64_getKind     (getKind_o));
-  assign isSealed_o = getKind_o[6:4] != 3'b000;
+  assign isSealed_o = getKind_o[CheriKindWidth-1:CheriOTypeWidth] != '0;
 
-  logic [30:0] pcc_perms;
+  logic [CheriPermsWidth-1:0] pcc_perms;
   logic pcc_has_asr;
   module_wrap64_getPerms module_getPerms (
     .wrap64_getPerms_cap (pcc_id_i),
