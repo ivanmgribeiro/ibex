@@ -21,8 +21,8 @@ module ibex_cheri_alu #(
   output logic [CheriCapWidth-1:0] result_o,
   output logic wrote_capability,
 
-  output logic [ibex_pkg::CheriExcWidth-1:0] exceptions_a_o,
-  output logic [ibex_pkg::CheriExcWidth-1:0] exceptions_b_o
+  output ibex_pkg::cheri_exc_t exceptions_a_o,
+  output ibex_pkg::cheri_exc_t exceptions_b_o
 
 );
   import ibex_pkg::*;
@@ -33,7 +33,6 @@ module ibex_cheri_alu #(
   // Constant parameters
   // TODO perhaps these should be moved to ibex_pkg?
   //    (or perhaps ibex_cheri_pkg?)
-  localparam int unsigned ExceptionWidth  = CheriExcWidth;
   localparam int unsigned KindWidth       = CheriKindWidth;
   localparam int unsigned OTypeWidth      = CheriOTypeWidth;
   localparam int unsigned RegsPerQuarter  = 4;
@@ -46,8 +45,8 @@ module ibex_cheri_alu #(
 
   // there are 22 exceptions currently defined in the CHERI-RISCV spec
   // TODO see if there are any unused exceptions (there are some that are MIPS-only)
-  logic [CheriExcWidth-1:0] exceptions_a;
-  logic [CheriExcWidth-1:0] exceptions_b;
+  cheri_exc_t exceptions_a;
+  cheri_exc_t exceptions_b;
 
   // Operands a and b as integers (ie bottom IntWidth bits)
   logic [IntWidth-1:0] operand_a_int = operand_a_i[IntWidth-1:0];
@@ -178,8 +177,8 @@ module ibex_cheri_alu #(
   //////////////////////////
 
   always_comb begin
-    exceptions_a_o = '0;
-    exceptions_b_o = '0;
+    exceptions_a_o = cheri_exc_t'(0);
+    exceptions_b_o = cheri_exc_t'(0);
 
     alu_operand_a_o  = '0;
     alu_operand_b_o  = '0;
@@ -204,8 +203,8 @@ module ibex_cheri_alu #(
 
     // used for checking branch targets
     if (exc_only_i) begin
-      exceptions_a_o[LENGTH_VIOLATION] = {btalu_result_i[31:1], 1'b0} < a_getBase_o
-                                       | {1'b0, btalu_result_i[31:1], 1'b0} + 2 > a_getTop_o;
+      exceptions_a_o.length_violation = {btalu_result_i[31:1], 1'b0} < a_getBase_o
+                                      | {1'b0, btalu_result_i[31:1], 1'b0} + 2 > a_getTop_o;
     end else begin
       case (base_opcode_i)
         THREE_OP: begin
@@ -233,9 +232,9 @@ module ibex_cheri_alu #(
               alu_operand_b_o = operand_b_int;
               alu_operator_o  = ALU_ADD;
 
-              exceptions_a_o[   TAG_VIOLATION] = exceptions_a[  TAG_VIOLATION];
-              exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[ SEAL_VIOLATION];
-              exceptions_a_o[LENGTH_VIOLATION] = exceptions_a[LENGTH_VIOLATION]
+              exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation   = exceptions_a.seal_violation;
+              exceptions_a_o.length_violation = exceptions_a.length_violation
                                                | alu_result_i > a_getTop_o;
 
               if (Verbosity) begin
@@ -253,11 +252,11 @@ module ibex_cheri_alu #(
               alu_operand_b_o = operand_b_int;
               alu_operator_o  = ALU_ADD;
 
-              exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
-              exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
-              exceptions_a_o[        LENGTH_VIOLATION] = exceptions_a[        LENGTH_VIOLATION]
-                                                       | alu_result_i > a_getTop_o;
-              exceptions_a_o[INEXACT_BOUNDS_VIOLATION] = ~a_setBounds_o[CheriCapWidth];
+              exceptions_a_o.tag_violation            = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation           = exceptions_a.seal_violation;
+              exceptions_a_o.length_violation         = exceptions_a.length_violation
+                                                      | alu_result_i > a_getTop_o;
+              exceptions_a_o.inexact_bounds_violation = ~a_setBounds_o[CheriCapWidth];
 
               if (Verbosity) begin
                 $display("csetboundse output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -271,15 +270,15 @@ module ibex_cheri_alu #(
               result_o         = a_setKind_o;
               wrote_capability = 1'b1;
 
-              exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.tag_violation  = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
-              exceptions_b_o[        TAG_VIOLATION] = exceptions_b[        TAG_VIOLATION];
-              exceptions_b_o[       SEAL_VIOLATION] = exceptions_b[       SEAL_VIOLATION];
-              exceptions_b_o[     LENGTH_VIOLATION] = exceptions_b[     LENGTH_VIOLATION]
-                                                    | ({1'b0, b_getAddr_o} >= b_getTop_o)
-                                                    | (b_getAddr_o > CheriMaxOType);
-              exceptions_b_o[PERMIT_SEAL_VIOLATION] = exceptions_b[PERMIT_SEAL_VIOLATION];
+              exceptions_b_o.tag_violation         = exceptions_b.tag_violation;
+              exceptions_b_o.seal_violation        = exceptions_b.seal_violation;
+              exceptions_b_o.length_violation      = exceptions_b.length_violation
+                                                   | ({1'b0, b_getAddr_o} >= b_getTop_o)
+                                                   | (b_getAddr_o > CheriMaxOType);
+              exceptions_b_o.permit_seal_violation = exceptions_b.permit_seal_violation;
 
               if (Verbosity) begin
                 $display("cseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -295,15 +294,15 @@ module ibex_cheri_alu #(
               result_o         = a_setKind_o;
               wrote_capability = 1'b1;
 
-              exceptions_a_o[ TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
-              exceptions_a_o[SEAL_VIOLATION] = !a_isSealed_o;
+              exceptions_a_o.tag_violation  = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation = !a_isSealed_o;
 
-              exceptions_b_o[          TAG_VIOLATION] = exceptions_b[TAG_VIOLATION];
-              exceptions_b_o[         SEAL_VIOLATION] = b_isSealed_o;
-              exceptions_b_o[         TYPE_VIOLATION] = b_getAddr_o != {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o};
-              exceptions_b_o[PERMIT_UNSEAL_VIOLATION] = exceptions_b[PERMIT_UNSEAL_VIOLATION];
-              exceptions_b_o[       LENGTH_VIOLATION] = exceptions_b[       LENGTH_VIOLATION]
-                                                      | {1'b0, b_getAddr_o} >= b_getTop_o;
+              exceptions_b_o.tag_violation           = exceptions_b.tag_violation;
+              exceptions_b_o.seal_violation          = b_isSealed_o;
+              exceptions_b_o.type_violation          = b_getAddr_o != {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o};
+              exceptions_b_o.permit_unseal_violation = exceptions_b.permit_unseal_violation;
+              exceptions_b_o.length_violation        = exceptions_b.length_violation
+                                                     | {1'b0, b_getAddr_o} >= b_getTop_o;
 
               if (Verbosity) begin
                 $display("cunseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -316,8 +315,8 @@ module ibex_cheri_alu #(
               result_o         = a_setPerms_o;
               wrote_capability = 1'b1;
 
-              exceptions_a_o[ TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.tag_violation  = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("candperm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -330,7 +329,7 @@ module ibex_cheri_alu #(
               result_o         = a_setFlags_o;
               wrote_capability = 1'b1;
 
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("csetflags output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -343,7 +342,7 @@ module ibex_cheri_alu #(
               result_o         = a_setOffset_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("csetoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -356,7 +355,7 @@ module ibex_cheri_alu #(
               result_o         = a_setAddr_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("csetaddr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -371,7 +370,7 @@ module ibex_cheri_alu #(
               result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_incOffset_o[CheriCapWidth];
               wrote_capability          = 1'b1;
 
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("cincoffset output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -382,9 +381,9 @@ module ibex_cheri_alu #(
               result_o[IntWidth-1:0] = a_isValidCap_o ? a_getAddr_o - b_getBase_o : IntWidth'(1'b0);
               wrote_capability       = 1'b0;
 
-              exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
-              exceptions_b_o[ TAG_VIOLATION] = exceptions_b[ TAG_VIOLATION];
+              exceptions_b_o.tag_violation  = exceptions_b.tag_violation;
 
               if (Verbosity) begin
                 $display("ctoptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -398,8 +397,8 @@ module ibex_cheri_alu #(
               result_o         = operand_b_int == '0 ? '0
                                                      : a_setOffset_o[CheriCapWidth-1:0];
 
-              exceptions_a_o[ TAG_VIOLATION] = operand_b_i != 0 && exceptions_a[ TAG_VIOLATION];
-              exceptions_a_o[SEAL_VIOLATION] = operand_b_i != 0 && exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.tag_violation  = operand_b_i != 0 && exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation = operand_b_i != 0 && exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("cfromptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -430,14 +429,14 @@ module ibex_cheri_alu #(
               result_o[CheriCapWidth-1] = 1'b1;
               wrote_capability = 1'b1;
 
-              exceptions_a_o[             TAG_VIOLATION] = exceptions_a[ TAG_VIOLATION];
-              exceptions_a_o[            SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
-              exceptions_a_o[          LENGTH_VIOLATION] = (b_getBase_o < a_getBase_o)
-                                                         | (b_getTop_o > a_getTop_o);
-              exceptions_a_o[SOFTWARE_DEFINED_VIOLATION] = (a_getPerms_o & b_getPerms_o) != b_getPerms_o;
+              exceptions_a_o.tag_violation              = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation             = exceptions_a.seal_violation;
+              exceptions_a_o.length_violation           = (b_getBase_o < a_getBase_o)
+                                                        | (b_getTop_o > a_getTop_o);
+              exceptions_a_o.software_defined_violation = (a_getPerms_o & b_getPerms_o) != b_getPerms_o;
 
               // Top is 1 bit longer than base (ie 33 bit when XLEN is 32)
-              exceptions_b_o[LENGTH_VIOLATION] = {1'b0, b_getBase_o} > b_getTop_o;
+              exceptions_b_o.length_violation = {1'b0, b_getBase_o} > b_getTop_o;
 
               if (Verbosity) begin
                 $display("cbuildcap output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -454,12 +453,12 @@ module ibex_cheri_alu #(
                                                      // sign-extend the otype
                                                      : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
 
-              exceptions_a_o[   TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
-              exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+              exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation   = exceptions_a.seal_violation;
               // Not the same as a "common" length violation so we can't use the common case
-              exceptions_a_o[LENGTH_VIOLATION] = b_has_software_type
-                                               & ({{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o} < a_getBase_o
-                                                 |{{(IntWidth-OTypeWidth+1){1'b0}}, b_getOType_o} >= a_getTop_o);
+              exceptions_a_o.length_violation = b_has_software_type
+                                              & ({{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o} < a_getBase_o
+                                                |{{(IntWidth-OTypeWidth+1){1'b0}}, b_getOType_o} >= a_getTop_o);
 
               if (Verbosity) begin
                 $display("ccopytype output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -477,12 +476,12 @@ module ibex_cheri_alu #(
               result_o         = b_is_ok & a_is_ok ? a_setKind_o : operand_a_i;
               wrote_capability = 1'b1;
 
-              exceptions_a_o[TAG_VIOLATION] = exceptions_a[TAG_VIOLATION];
+              exceptions_a_o.tag_violation = exceptions_a.tag_violation;
 
-              exceptions_b_o[       SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[       SEAL_VIOLATION];
-              exceptions_b_o[PERMIT_SEAL_VIOLATION] = a_is_ok && b_is_ok && exceptions_b[PERMIT_SEAL_VIOLATION];
-              exceptions_b_o[     LENGTH_VIOLATION] = a_is_ok && b_is_ok && (exceptions_b[LENGTH_VIOLATION]
-                                                                            |b_getAddr_o > CheriMaxOType);
+              exceptions_b_o.seal_violation        = a_is_ok && b_is_ok && exceptions_b.seal_violation;
+              exceptions_b_o.permit_seal_violation = a_is_ok && b_is_ok && exceptions_b.permit_seal_violation;
+              exceptions_b_o.length_violation      = a_is_ok && b_is_ok && (exceptions_b.length_violation
+                                                                           |b_getAddr_o > CheriMaxOType);
 
               if (Verbosity) begin
                 $display("ccseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -522,22 +521,22 @@ module ibex_cheri_alu #(
               alu_operand_b_o = 2;
               alu_operator_o  = ALU_ADD;
 
-              exceptions_a_o[           TAG_VIOLATION] =  exceptions_a[           TAG_VIOLATION];
+              exceptions_a_o.tag_violation            =  exceptions_a.tag_violation;
               // capability a SHOULD be sealed
-              exceptions_a_o[          SEAL_VIOLATION] = ~exceptions_a[          SEAL_VIOLATION];
-              exceptions_a_o[          TYPE_VIOLATION] =  a_getKind_o != b_getKind_o;
-              exceptions_a_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_a[PERMIT_CINVOKE_VIOLATION];
-              exceptions_a_o[PERMIT_EXECUTE_VIOLATION] =  exceptions_a[PERMIT_EXECUTE_VIOLATION];
-              exceptions_a_o[        LENGTH_VIOLATION] =  new_addr < a_getBase_o
-                                                       |  alu_result_i > a_getTop_o;
-              exceptions_a_o[UNALIGNED_BASE_VIOLATION] =  a_getBase_o[0];
+              exceptions_a_o.seal_violation           = ~exceptions_a.seal_violation;
+              exceptions_a_o.type_violation           =  a_getKind_o != b_getKind_o;
+              exceptions_a_o.permit_cinvoke_violation =  exceptions_a.permit_cinvoke_violation;
+              exceptions_a_o.permit_execute_violation =  exceptions_a.permit_execute_violation;
+              exceptions_a_o.length_violation         =  new_addr < a_getBase_o
+                                                      |  alu_result_i > a_getTop_o;
+              exceptions_a_o.unaligned_base_violation =  a_getBase_o[0];
 
-              exceptions_b_o[           TAG_VIOLATION] =  exceptions_b[           TAG_VIOLATION];
+              exceptions_b_o.tag_violation            =  exceptions_b.tag_violation;
               // capability b SHOULD be sealed
-              exceptions_b_o[          SEAL_VIOLATION] = ~exceptions_b[          SEAL_VIOLATION];
+              exceptions_b_o.seal_violation           = ~exceptions_b.seal_violation;
               // capability b SHOULD NOT be executable (it should be a data capability)
-              exceptions_b_o[PERMIT_EXECUTE_VIOLATION] = ~exceptions_b[PERMIT_EXECUTE_VIOLATION];
-              exceptions_b_o[PERMIT_CINVOKE_VIOLATION] =  exceptions_b[PERMIT_CINVOKE_VIOLATION];
+              exceptions_b_o.permit_execute_violation = ~exceptions_b.permit_execute_violation;
+              exceptions_b_o.permit_cinvoke_violation =  exceptions_b.permit_cinvoke_violation;
             end
 
             SOURCE_AND_DEST: begin
@@ -684,16 +683,17 @@ module ibex_cheri_alu #(
                     // this next line is here to allow easy updating of that logic
                     logic [32:0] alu_result_int = 33'h2 + (operand_b_int[31] ? {1'b0, alu_result_i[31:1], 1'b0}
                                                                              : {1'b0, alu_result_i[31:1], 1'b0});
-                    exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
+
+                    exceptions_a_o.tag_violation            = exceptions_a.tag_violation;
                     // capabilities sealed as Sentries are allowed
                     // if the capability _is_ a sentry, the immediate must be 0 (for cap-mode JALR)
-                    exceptions_a_o[          SEAL_VIOLATION] = (exceptions_a[          SEAL_VIOLATION]
-                                                               & a_getKind_o != 7'h1E)
-                                                             | (a_getKind_o == 7'h1E & operand_b_int != 0);
-                    exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
-                    exceptions_a_o[        LENGTH_VIOLATION] = {alu_result_i[31:1], 1'b0} < a_getBase_o
-                                                             | alu_result_int > a_getTop_o;
-                    exceptions_a_o[UNALIGNED_BASE_VIOLATION] = a_getBase_o[0];
+                    exceptions_a_o.seal_violation           = (exceptions_a.seal_violation
+                                                              & a_getKind_o != 7'h1E)
+                                                            | (a_getKind_o == 7'h1E & operand_b_int != 0);
+                    exceptions_a_o.permit_execute_violation = exceptions_a.permit_execute_violation;
+                    exceptions_a_o.length_violation         = {alu_result_i[31:1], 1'b0} < a_getBase_o
+                                                            | alu_result_int > a_getTop_o;
+                    exceptions_a_o.unaligned_base_violation = a_getBase_o[0];
                     // we don't care about trying to throw the last exception since we do support
                     // compressed instructions
                   end
@@ -723,9 +723,9 @@ module ibex_cheri_alu #(
                   result_o         = a_setKind_o;
                   wrote_capability = 1'b1;
 
-                  exceptions_a_o[           TAG_VIOLATION] = exceptions_a[           TAG_VIOLATION];
-                  exceptions_a_o[          SEAL_VIOLATION] = exceptions_a[          SEAL_VIOLATION];
-                  exceptions_a_o[PERMIT_EXECUTE_VIOLATION] = exceptions_a[PERMIT_EXECUTE_VIOLATION];
+                  exceptions_a_o.tag_violation            = exceptions_a.tag_violation;
+                  exceptions_a_o.seal_violation           = exceptions_a.seal_violation;
+                  exceptions_a_o.permit_execute_violation = exceptions_a.permit_execute_violation;
                 end
 
                 C_ROUND_REP_LEN: begin
@@ -762,7 +762,7 @@ module ibex_cheri_alu #(
           result_o[CheriCapWidth-1] = result_o[CheriCapWidth-1] & a_incOffset_o[CheriCapWidth];
           wrote_capability          = 1'b1;
 
-          exceptions_a_o[SEAL_VIOLATION] = exceptions_a[SEAL_VIOLATION];
+          exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
           if (Verbosity) begin
             $display  ("cincoffsetimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -780,10 +780,10 @@ module ibex_cheri_alu #(
           alu_operand_b_o = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
           alu_operator_o  = ALU_ADD;
 
-          exceptions_a_o[   TAG_VIOLATION] = exceptions_a[   TAG_VIOLATION];
-          exceptions_a_o[  SEAL_VIOLATION] = exceptions_a[  SEAL_VIOLATION];
-          exceptions_a_o[LENGTH_VIOLATION] = exceptions_a[LENGTH_VIOLATION]
-                                           | alu_result_i > a_getTop_o;
+          exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
+          exceptions_a_o.seal_violation   = exceptions_a.seal_violation;
+          exceptions_a_o.length_violation = exceptions_a.length_violation
+                                          | alu_result_i > a_getTop_o;
 
           if (Verbosity) begin
             $display("csetboundsimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -966,47 +966,47 @@ module_wrap64_getRepresentableLength module_getRepresentableLength_a (
 
   // check for common violations
   always_comb begin
-    exceptions_a = 0;
-    exceptions_b = 0;
+    exceptions_a = cheri_exc_t'(0);
+    exceptions_b = cheri_exc_t'(0);
 
     if (!a_isValidCap_o)
-      exceptions_a[TAG_VIOLATION] = 1'b1;
+      exceptions_a.tag_violation = 1'b1;
 
     if (!b_isValidCap_o)
-      exceptions_b[TAG_VIOLATION] = 1'b1;
+      exceptions_b.tag_violation = 1'b1;
 
     if (a_isValidCap_o && a_isSealed_o)
-      exceptions_a[SEAL_VIOLATION] = 1'b1;
+      exceptions_a.seal_violation = 1'b1;
 
     if (b_isValidCap_o && b_isSealed_o)
-      exceptions_b[SEAL_VIOLATION] = 1'b1;
+      exceptions_b.seal_violation = 1'b1;
 
     if (a_getAddr_o < a_getBase_o)
-      exceptions_a[LENGTH_VIOLATION] = 1'b1;
+      exceptions_a.length_violation = 1'b1;
 
     if (b_getAddr_o < b_getBase_o)
-      exceptions_b[LENGTH_VIOLATION] = 1'b1;
+      exceptions_b.length_violation = 1'b1;
 
     if (a_getKind_o != b_getKind_o)
-      exceptions_a[TYPE_VIOLATION] = 1'b1;
+      exceptions_a.type_violation = 1'b1;
 
     if (!b_getPerms_o[PermitUnsealIndex])
-      exceptions_b[PERMIT_UNSEAL_VIOLATION] = 1'b1;
+      exceptions_b.permit_unseal_violation = 1'b1;
 
     if (!b_getPerms_o[PermitSealIndex])
-      exceptions_b[PERMIT_SEAL_VIOLATION] = 1'b1;
+      exceptions_b.permit_seal_violation = 1'b1;
 
     if (!a_getPerms_o[PermitExecuteIndex])
-      exceptions_a[PERMIT_EXECUTE_VIOLATION] = 1'b1;
+      exceptions_a.permit_execute_violation = 1'b1;
 
     if (!b_getPerms_o[PermitExecuteIndex])
-      exceptions_b[PERMIT_EXECUTE_VIOLATION] = 1'b1;
+      exceptions_b.permit_execute_violation = 1'b1;
 
     if (!a_getPerms_o[PermitCInvokeIndex])
-      exceptions_a[PERMIT_CINVOKE_VIOLATION] = 1'b1;
+      exceptions_a.permit_cinvoke_violation = 1'b1;
 
     if (!b_getPerms_o[PermitCInvokeIndex])
-      exceptions_b[PERMIT_CINVOKE_VIOLATION] = 1'b1;
+      exceptions_b.permit_cinvoke_violation = 1'b1;
 
   end
 endmodule

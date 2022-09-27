@@ -59,8 +59,8 @@ module ibex_ex_block #(
   output logic [CheriCapWidth-1:0] cheri_result_o,
   output logic cheri_wrote_capability,
 
-  output logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_o,
-  output logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_o,
+  output ibex_pkg::cheri_exc_t cheri_exceptions_a_o,
+  output ibex_pkg::cheri_exc_t cheri_exceptions_b_o,
 
   // Outputs
   output logic [31:0]              alu_adder_result_ex_o, // to LSU

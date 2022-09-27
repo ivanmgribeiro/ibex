@@ -29,7 +29,7 @@ module ibex_load_store_unit #(
   input  logic         data_rvalid_i,
   input  logic         data_bus_err_i,
   input  logic         data_pmp_err_i,
-  input  logic [ibex_pkg::CheriExcWidth-1:0] data_cheri_err_i,
+  input  ibex_pkg::cheri_exc_t data_cheri_err_i,
 
   output logic [31:0]             data_addr_o,
   output logic                    data_we_o,

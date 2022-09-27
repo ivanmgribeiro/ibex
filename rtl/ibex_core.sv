@@ -306,11 +306,11 @@ module ibex_core import ibex_pkg::*; #(
   logic                     cheri_wrote_cap_ex;
 
   // CHERI exceptions
-  logic [CheriExcWidth-1:0] cheri_exceptions_a_ex;
-  logic [CheriExcWidth-1:0] cheri_exceptions_b_ex;
-  logic [CheriExcWidth-1:0] cheri_exceptions_lsu;
-  logic [CheriExcWidth-1:0] cheri_exceptions_instr;
-  logic [CheriExcWidth-1:0] cheri_exceptions_if; // IFetch exceptions to ID
+  cheri_exc_t cheri_exceptions_a_ex;
+  cheri_exc_t cheri_exceptions_b_ex;
+  cheri_exc_t cheri_exceptions_lsu;
+  cheri_exc_t cheri_exceptions_instr;
+  cheri_exc_t cheri_exceptions_if; // IFetch exceptions to ID
   logic                     instr_upper_exc, instr_upper_exc_2;
 
   c_exc_cause_e       cheri_exc_cause;

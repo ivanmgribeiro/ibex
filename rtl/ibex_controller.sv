@@ -67,15 +67,15 @@ module ibex_controller #(
   output logic                  id_exception_o,          // Instruction in ID taking an exception
 
   // CHERI exception signals
-  input  logic                               cheri_en_i,
-  input  logic                               cheri_alu_exc_only_i,
-  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_a_ex_i,
-  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_b_ex_i,
-  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_lsu_i,
-  input  logic [ibex_pkg::CheriExcWidth-1:0] cheri_exceptions_if_i,
-  input  logic                               scr_no_asr_i,
-  input  logic                               csr_no_asr_i,
-  input  logic                               mret_no_asr_i,
+  input  logic                  cheri_en_i,
+  input  logic                  cheri_alu_exc_only_i,
+  input  ibex_pkg::cheri_exc_t  cheri_exceptions_a_ex_i,
+  input  ibex_pkg::cheri_exc_t  cheri_exceptions_b_ex_i,
+  input  ibex_pkg::cheri_exc_t  cheri_exceptions_lsu_i,
+  input  ibex_pkg::cheri_exc_t  cheri_exceptions_if_i,
+  input  logic                  scr_no_asr_i,
+  input  logic                  csr_no_asr_i,
+  input  logic                  mret_no_asr_i,
 
   // jump/branch signals
   input  logic                  branch_set_i,            // branch set signal (branch definitely
@@ -1013,144 +1013,144 @@ module ibex_controller #(
       cheri_exc_cause_o   = CAUSE_PERMIT_ACCESS_SYSTEM_REGISTERS_VIOLATION;
       cheri_exc_reg_sel_o = REG_SCR;
 
-    end else if (cheri_exceptions_a_ex_i[TAG_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.tag_violation) begin
       cheri_exc_cause_o   = CAUSE_TAG_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[TAG_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.tag_violation) begin
       cheri_exc_cause_o   = CAUSE_TAG_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
-    end else if (cheri_exceptions_if_i[TAG_VIOLATION]) begin
+    end else if (cheri_exceptions_if_i.tag_violation) begin
       cheri_exc_cause_o   = CAUSE_TAG_VIOLATION;
 
-    end else if (cheri_exceptions_a_ex_i[SEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.seal_violation) begin
       cheri_exc_cause_o   = CAUSE_SEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[SEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.seal_violation) begin
       cheri_exc_cause_o   = CAUSE_SEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
-    end else if (cheri_exceptions_if_i[SEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_if_i.seal_violation) begin
       cheri_exc_cause_o   = CAUSE_SEAL_VIOLATION;
 
-    end else if (cheri_exceptions_a_ex_i[TYPE_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.type_violation) begin
       cheri_exc_cause_o   = CAUSE_TYPE_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[TYPE_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.type_violation) begin
       cheri_exc_cause_o   = CAUSE_TYPE_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_SEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_seal_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_SEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_SEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_seal_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_SEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_CINVOKE_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_cinvoke_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_CINVOKE_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_CINVOKE_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_cinvoke_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_CINVOKE_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[ACCESS_CINVOKE_IDC_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.access_cinvoke_idc_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_ACCESS_CINVOKE_IDC_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[ACCESS_CINVOKE_IDC_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.access_cinvoke_idc_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_ACCESS_CINVOKE_IDC_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_UNSEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_unseal_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_UNSEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_UNSEAL_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_unseal_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_UNSEAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_SET_CID_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_set_cid_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_SET_CID_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_SET_CID_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_set_cid_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_SET_CID_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_EXECUTE_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_execute_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_EXECUTE_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_EXECUTE_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_execute_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_EXECUTE_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
-    end else if (cheri_exceptions_if_i[PERMIT_EXECUTE_VIOLATION]) begin
+    end else if (cheri_exceptions_if_i.permit_execute_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_EXECUTE_VIOLATION;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_LOAD_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_load_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_LOAD_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_LOAD_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_load_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_LOAD_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_STORE_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_store_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_STORE_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_STORE_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_store_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_STORE_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_LOAD_CAPABILITY_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_load_capability_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_LOAD_CAPABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_LOAD_CAPABILITY_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_load_capability_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_LOAD_CAPABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_STORE_CAPABILITY_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_store_capability_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_STORE_CAPABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_STORE_CAPABILITY_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_store_capability_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_STORE_CAPABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[PERMIT_STORE_LOCAL_CAPABILITY_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.permit_store_local_capability_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_STORE_LOCAL_CAPABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[PERMIT_STORE_LOCAL_CAPABILITY_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.permit_store_local_capability_violation) begin
       cheri_exc_cause_o   = CAUSE_PERMIT_STORE_LOCAL_CAPABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[GLOBAL_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.global_violation) begin
       cheri_exc_cause_o   = CAUSE_GLOBAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[GLOBAL_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.global_violation) begin
       cheri_exc_cause_o   = CAUSE_GLOBAL_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[LENGTH_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.length_violation) begin
       cheri_exc_cause_o   = CAUSE_LENGTH_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[LENGTH_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.length_violation) begin
       cheri_exc_cause_o   = CAUSE_LENGTH_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
-    end else if (cheri_exceptions_if_i[LENGTH_VIOLATION]) begin
+    end else if (cheri_exceptions_if_i.length_violation) begin
       cheri_exc_cause_o   = CAUSE_LENGTH_VIOLATION;
 
-    end else if (cheri_exceptions_a_ex_i[UNALIGNED_BASE_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.unaligned_base_violation) begin
       cheri_exc_cause_o   = CAUSE_UNALIGNED_BASE_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[UNALIGNED_BASE_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.unaligned_base_violation) begin
       cheri_exc_cause_o   = CAUSE_UNALIGNED_BASE_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[INEXACT_BOUNDS_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.inexact_bounds_violation) begin
       cheri_exc_cause_o   = CAUSE_REPRESENTABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[INEXACT_BOUNDS_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.inexact_bounds_violation) begin
       cheri_exc_cause_o   = CAUSE_REPRESENTABILITY_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
 
-    end else if (cheri_exceptions_a_ex_i[SOFTWARE_DEFINED_VIOLATION]) begin
+    end else if (cheri_exceptions_a_ex_i.software_defined_violation) begin
       cheri_exc_cause_o   = CAUSE_SOFTWARE_DEFINED_PERMISSION_VIOLATION;
       cheri_exc_reg_sel_o = REG_A;
-    end else if (cheri_exceptions_b_ex_i[SOFTWARE_DEFINED_VIOLATION]) begin
+    end else if (cheri_exceptions_b_ex_i.software_defined_violation) begin
       cheri_exc_cause_o   = CAUSE_SOFTWARE_DEFINED_PERMISSION_VIOLATION;
       cheri_exc_reg_sel_o = REG_B;
     end

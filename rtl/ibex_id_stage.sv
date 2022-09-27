@@ -111,10 +111,10 @@ module ibex_id_stage #(
   input                             cheri_wrote_cap_i,
 
   // CHERI exceptions
-  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_a_ex_i,
-  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_b_ex_i,
-  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_lsu_i,
-  input  [ibex_pkg::CheriExcWidth-1:0]   cheri_exceptions_if_i,
+  input  ibex_pkg::cheri_exc_t   cheri_exceptions_a_ex_i,
+  input  ibex_pkg::cheri_exc_t   cheri_exceptions_b_ex_i,
+  input  ibex_pkg::cheri_exc_t   cheri_exceptions_lsu_i,
+  input  ibex_pkg::cheri_exc_t   cheri_exceptions_if_i,
 
   // CHERI exception cause
   output ibex_pkg::c_exc_cause_e       cheri_exc_cause_o,

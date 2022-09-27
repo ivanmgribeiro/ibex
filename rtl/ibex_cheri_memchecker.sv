@@ -23,7 +23,7 @@ module ibex_cheri_memchecker #(
     // new output signal to prevent CHERI-disallowed writes from writing memory
     output logic       data_we_o,
     // exceptions that have been caused
-    output logic [ibex_pkg::CheriExcWidth-1:0] cheri_mem_exc_o,
+    output ibex_pkg::cheri_exc_t cheri_mem_exc_o,
     // whether there was a length exception caused by fetching the second half
     // of an instruction
     output logic                               instr_upper_exc_o,
@@ -43,9 +43,9 @@ module ibex_cheri_memchecker #(
   logic [32:0]                auth_cap_getTop_o;
   logic [CheriPermsWidth-1:0] auth_cap_getPerms_o;
 
-  logic [CheriExcWidth-1:0] cheri_mem_exc_q, cheri_mem_exc_d;
-  logic                     instr_upper_exc_q, instr_upper_exc_d;
-  logic                     instr_upper_exc_2_q, instr_upper_exc_2_d;
+  cheri_exc_t cheri_mem_exc_q, cheri_mem_exc_d;
+  logic       instr_upper_exc_q, instr_upper_exc_d;
+  logic       instr_upper_exc_2_q, instr_upper_exc_2_d;
 
   // get data size from type to use in bounds checking, and then zero-extend
   // it to the correct size (33 bits since capability "top" is 33 bits)
@@ -81,15 +81,15 @@ module ibex_cheri_memchecker #(
   end
 
   // perform the memory checks
-  assign cheri_mem_exc_d[           TAG_VIOLATION] = ~auth_cap_isValidCap_o;
-  assign cheri_mem_exc_d[          SEAL_VIOLATION] =  auth_cap_isSealed_o;
-  assign cheri_mem_exc_d[   PERMIT_LOAD_VIOLATION] = ~data_we_i & DataMem & ~auth_cap_getPerms_o[2];
-  assign cheri_mem_exc_d[  PERMIT_STORE_VIOLATION] =  data_we_i & ~auth_cap_getPerms_o[3];
-  assign cheri_mem_exc_d[PERMIT_EXECUTE_VIOLATION] = ~DataMem & ~auth_cap_getPerms_o[PermitExecuteIndex];
-  assign cheri_mem_exc_d[        LENGTH_VIOLATION] = (data_addr_actual < auth_cap_getBase_o)
-                                                     // if this is an instruction checker, allow accesses that
-                                                     // overflow the address calculation
-                                                   | (DataMem ? ({1'b0, data_addr_actual} + {1'b0, data_size_ext} > auth_cap_getTop_o)
+  assign cheri_mem_exc_d.tag_violation            = ~auth_cap_isValidCap_o;
+  assign cheri_mem_exc_d.seal_violation           =  auth_cap_isSealed_o;
+  assign cheri_mem_exc_d.permit_load_violation    = ~data_we_i & DataMem & ~auth_cap_getPerms_o[2];
+  assign cheri_mem_exc_d.permit_store_violation   =  data_we_i & ~auth_cap_getPerms_o[3];
+  assign cheri_mem_exc_d.permit_execute_violation = ~DataMem & ~auth_cap_getPerms_o[PermitExecuteIndex];
+  assign cheri_mem_exc_d.length_violation         = (data_addr_actual < auth_cap_getBase_o)
+                                                    // if this is an instruction checker, allow accesses that
+                                                    // overflow the address calculation
+                                                  | (DataMem ? ({1'b0, data_addr_actual} + {1'b0, data_size_ext} > auth_cap_getTop_o)
                                                               : ({1'b0, data_addr_actual + data_size_ext} > auth_cap_getTop_o));
   // don't bother checking if it is below base (if it is, then there will be
   // a length violation in the lower word anyway

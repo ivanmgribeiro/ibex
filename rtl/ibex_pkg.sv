@@ -287,31 +287,30 @@ package ibex_pkg;
     LQ_CAP  = 5'h1F
   } cheri_load_funct5_e;
 
-  typedef enum logic [4:0] {
-    ACCESS_SYSTEM_REGISTERS_VIOLATION,
-    TAG_VIOLATION,
-    SEAL_VIOLATION,
-    TYPE_VIOLATION,
-    PERMIT_SEAL_VIOLATION,
-    PERMIT_CINVOKE_VIOLATION,
-    ACCESS_CINVOKE_IDC_VIOLATION,
-    PERMIT_UNSEAL_VIOLATION,
-    PERMIT_SET_CID_VIOLATION,
-    PERMIT_EXECUTE_VIOLATION,
-    PERMIT_LOAD_VIOLATION,
-    PERMIT_STORE_VIOLATION,
-    PERMIT_LOAD_CAPABILITY_VIOLATION,
-    PERMIT_STORE_CAPABILITY_VIOLATION,
-    PERMIT_STORE_LOCAL_CAPABILITY_VIOLATION,
-    GLOBAL_VIOLATION,
-    LENGTH_VIOLATION,
-    INEXACT_BOUNDS_VIOLATION,
-    UNALIGNED_BASE_VIOLATION,
-    SOFTWARE_DEFINED_VIOLATION
-  } cheri_capability_exception_e;
+  typedef struct packed {
+    logic access_system_regs_violation;
+    logic tag_violation;
+    logic seal_violation;
+    logic type_violation;
+    logic permit_seal_violation;
+    logic permit_cinvoke_violation;
+    logic access_cinvoke_idc_violation;
+    logic permit_unseal_violation;
+    logic permit_set_cid_violation;
+    logic permit_execute_violation;
+    logic permit_load_violation;
+    logic permit_store_violation;
+    logic permit_load_capability_violation;
+    logic permit_store_capability_violation;
+    logic permit_store_local_capability_violation;
+    logic global_violation;
+    logic length_violation;
+    logic inexact_bounds_violation;
+    logic unaligned_base_violation;
+    logic software_defined_violation;
+  } cheri_exc_t;
 
   // TODO perhaps there is a better way of representing these
-  parameter int unsigned CheriExcWidth      = 20;
   parameter int unsigned CheriKindWidth     = 7;
   parameter int unsigned CheriOTypeWidth    = 4;
   parameter int unsigned CheriPermsWidth    = 31;

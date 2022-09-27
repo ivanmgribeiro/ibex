@@ -48,9 +48,9 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic                        instr_intg_err_o,
 
   // CHERI exceptions
-  input logic [ibex_pkg::CheriExcWidth-1:0] instr_cheri_exc_i,
-  input logic                               instr_upper_exc_i,
-  input logic                               instr_upper_exc_2_i,
+  input ibex_pkg::cheri_exc_t         instr_cheri_exc_i,
+  input logic                         instr_upper_exc_i,
+  input logic                         instr_upper_exc_2_i,
 
   // ICache RAM IO
   output logic [IC_NUM_WAYS-1:0]      ic_tag_req_o,
@@ -92,7 +92,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   input  logic                        pmp_err_if_i,
   input  logic                        pmp_err_if_plus2_i,
 
-  output logic [ibex_pkg::CheriExcWidth-1:0] instr_cheri_exc_o, // CHERI exceptions thrown by fetch
+  output ibex_pkg::cheri_exc_t instr_cheri_exc_o, // CHERI exceptions thrown by fetch
 
   // control signals
   input  logic                        instr_valid_clear_i,      // clear instr valid bit in IF-ID
@@ -143,10 +143,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              instr_err, instr_intg_err;
   logic              instr_cheri_err;
 
-  logic [CheriExcWidth-1:0] instr_cheri_all_exc;
-  logic                     instr_cheri_len_exc;
+  cheri_exc_t        instr_cheri_all_exc;
+  logic              instr_cheri_len_exc;
 
-  logic [CheriExcWidth-1:0] cheri_exc_q;
+  cheri_exc_t        cheri_exc_q;
   // whether the next error to come out of the prefetch fifo was a CHERI error
   logic                     err_is_cheri_q;
   // tracks whether there is an error in the fifo.
@@ -328,16 +328,18 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign instr_intg_err            = 1'b0;
   end
 
-  assign instr_cheri_len_exc = (instr_cheri_exc_i[LENGTH_VIOLATION] & ~if_instr_addr[1]) // lower exception
+  assign instr_cheri_len_exc = (instr_cheri_exc_i.length_violation & ~if_instr_addr[1]) // lower exception
                              // upper exception and the PC was 4-byte aligned and was fetching a full word (not compressed)
                              | (instr_upper_exc_i   & ~if_instr_addr[1] & ~instr_is_compressed)
                              // (DII ONLY)
                              // upper exception 2 and the PC was not 4-byte aligned and was fetching a full word
                              | (instr_upper_exc_2_i &  if_instr_addr[1] & ~instr_is_compressed);
 
-  assign instr_cheri_all_exc = { instr_cheri_exc_i[CheriExcWidth-1:LENGTH_VIOLATION+1], // non-length CHERI exception
-                                 instr_cheri_len_exc,
-                                 instr_cheri_exc_i[LENGTH_VIOLATION-1:0] };
+  // all exception signals except the length violation are the same as the input
+  always_comb begin
+    instr_cheri_all_exc = instr_cheri_exc_i;
+    instr_cheri_all_exc.length_violation = instr_cheri_len_exc;
+  end
 
   assign instr_cheri_err = |instr_cheri_all_exc;
 
