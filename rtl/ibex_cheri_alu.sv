@@ -203,8 +203,11 @@ module ibex_cheri_alu #(
 
     // used for checking branch targets
     if (exc_only_i) begin
-      exceptions_a_o.length_violation = {btalu_result_i[31:1], 1'b0} < a_getBase_o
-                                      | {1'b0, btalu_result_i[31:1], 1'b0} + 2 > a_getTop_o;
+      // TODO this assumes that the value of getLength is unsigned, and that
+      // if the base is above the top then the length is 0
+      // The API does not explicitly state whether the base can be above the
+      // top, or what the behaviour is in that case.
+      exceptions_a_o.length_violation = {1'b0, btalu_result_i[31:1], 1'b0} + 2 > a_getLength_o;
     end else begin
       case (base_opcode_i)
         THREE_OP: begin
