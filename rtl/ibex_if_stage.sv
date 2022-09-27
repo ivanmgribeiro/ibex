@@ -355,7 +355,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   // The prefetchers (cache and prefetch buffer) handle _addresses_ since they directly control the
   // memory interface
   assign prefetch_branch = branch_req | nt_branch_mispredict_i;
-  assign prefetch_addr   = branch_req ? {fetch_offset_n[31:1], 1'b0} + new_pcc_getBase_o : nt_branch_addr_i;
+  assign prefetch_addr   = new_pcc_getAddr_o;
 
   // The fetch_valid signal that comes out of the icache or prefetch buffer should be squashed if we
   // had a misprediction.
@@ -842,7 +842,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   // When not jumping, this is the PCC of the instruction that is being
   // returned by the prefetcher/cache.
   logic [CheriCapWidth-1:0] new_pcc;
-  logic [31:0]              new_pcc_getBase_o;
+  logic [31:0]              new_pcc_getAddr_o;
 
   // The offset of the current branch target, used to get the next PC when
   // a capability jump occurs
@@ -856,7 +856,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   module_wrap64_setOffset pcc_setOffset(pcc_q, pc_if_o, {unused_pcc_setOffset_exact, nojump_pcc});
   module_wrap64_setOffset jump_pcc_setOffset(jump_pcc_setOffset_cap, fetch_offset_n, {unused_jump_pcc_setOffset_exact, jump_pcc});
   module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
-  module_wrap64_getBase   new_pcc_getBase  (new_pcc, new_pcc_getBase_o);
+  module_wrap64_getAddr   new_pcc_getAddr  (new_pcc, new_pcc_getAddr_o);
   // The base is not changed by modifying the offset, so just use the
   // registered value
   module_wrap64_getBase   pcc_getBase (pcc_q, nojump_pcc_getBase_o);
