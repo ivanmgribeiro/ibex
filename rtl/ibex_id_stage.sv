@@ -179,6 +179,7 @@ module ibex_id_stage #(
   input  logic                      lsu_load_intg_err_i,
   input  logic                      lsu_load_misalign_err_i,
   input  logic                      lsu_store_misalign_err_i,
+  input  logic                      lsu_cheri_err_i,
 
   // Debug Signal
   output logic                      debug_mode_o,
@@ -747,6 +748,7 @@ module ibex_id_stage #(
     .store_err_i    (lsu_store_err_i),
     .load_misalign_err_i (lsu_load_misalign_err_i),
     .store_misalign_err_i(lsu_store_misalign_err_i),
+    .lsu_cheri_err_i(lsu_cheri_err_i),
     .wb_exception_o (wb_exception),
     .id_exception_o (id_exception),
 
@@ -1196,7 +1198,7 @@ module ibex_id_stage #(
                                           : lsu_resp_valid_i |
                                             lsu_load_misalign_err_i |
                                             lsu_store_misalign_err_i |
-                                            |cheri_exceptions_lsu_i;
+                                            lsu_cheri_err_i;
 
     assign data_req_allowed = instr_first_cycle;
 
@@ -1204,7 +1206,7 @@ module ibex_id_stage #(
     // Then stall until it is complete or a CHERI LSU exception is thrown
     assign stall_mem = instr_valid_i
                      & lsu_req_dec
-                     & ~(|cheri_exceptions_lsu_i | lsu_load_misalign_err_i | lsu_store_misalign_err_i)
+                     & ~(lsu_cheri_err_i | lsu_load_misalign_err_i | lsu_store_misalign_err_i)
                      & (~lsu_resp_valid_i | instr_first_cycle);
 
     // No load hazards without Writeback Stage

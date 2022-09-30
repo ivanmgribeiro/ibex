@@ -123,6 +123,10 @@ module ibex_top import ibex_pkg::*; #(
   output logic                         perf_xret_o,
   output logic                         perf_jump_o,
   output logic                         perf_tbranch_o,
+  // Used in RVFI-DII to signal an instruction fetch that led to a CHERI exception.
+  // Such a fetch will not issue a request, so we need this to signal that
+  // there was a fetch but it failed so the replay buffer can remain in sync
+  output logic                         perf_if_cheri_err_o,
 `endif
 
   // CPU Control Signals
@@ -376,6 +380,7 @@ module ibex_top import ibex_pkg::*; #(
     .perf_xret_o,
     .perf_jump_o,
     .perf_tbranch_o,
+    .perf_if_cheri_err_o,
 `endif
 
     .fetch_enable_i        (fetch_enable_buf),

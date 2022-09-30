@@ -294,7 +294,7 @@ int main(int argc, char** argv, char** env) {
 
             // If there was a gnt_i signal last cycle, then provide an
             // instruction
-            if (top->instr_gnt_i) {
+            if (top->instr_gnt_i || top->perf_if_cheri_err_o) {
                 // TODO handle requests out of bounds
                 if (1) {
                 //if (instr_addr_prev >= 0x80000000 && instr_addr_prev < 0x80010000) {

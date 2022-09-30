@@ -92,6 +92,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   input  logic                        pmp_err_if_i,
   input  logic                        pmp_err_if_plus2_i,
 
+`ifdef RVFI
+  output logic                        perf_if_cheri_err_o,
+`endif
+
   output ibex_pkg::cheri_exc_t instr_cheri_exc_o, // CHERI exceptions thrown by fetch
 
   // control signals
@@ -141,10 +145,11 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              instr_new_id_d, instr_new_id_q;
 
   logic              instr_err, instr_intg_err;
-  logic              instr_cheri_err;
 
   cheri_exc_t        instr_cheri_all_exc;
+  logic              instr_cheri_any_exc;
   logic              instr_cheri_len_exc;
+  logic              instr_lower_exc;
 
   cheri_exc_t        cheri_exc_q;
   // whether the next error to come out of the prefetch fifo was a CHERI error
@@ -177,6 +182,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic       [31:0] fetch_addr;
   logic              fetch_err;
   logic              fetch_err_plus2;
+  logic              fetch_cheri_err;
+  logic              fetch_cheri_len_err;
 
   logic [31:0]       instr_decompressed;
   logic              illegal_c_insn;
@@ -189,6 +196,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic              if_instr_pmp_err;
   logic              if_instr_err;
   logic              if_instr_err_plus2;
+  logic              if_instr_cheri_err;
 
   logic       [31:0] exc_pc;
   logic [CheriCapWidth-1:0] exc_pcc;
@@ -328,24 +336,24 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign instr_intg_err            = 1'b0;
   end
 
-  assign instr_cheri_len_exc = (instr_cheri_exc_i.length_violation & ~if_instr_addr[1]) // lower exception
-                             // upper exception and the PC was 4-byte aligned and was fetching a full word (not compressed)
-                             | (instr_upper_exc_i   & ~if_instr_addr[1] & ~instr_is_compressed)
-                             // (DII ONLY)
-                             // upper exception 2 and the PC was not 4-byte aligned and was fetching a full word
-                             | (instr_upper_exc_2_i &  if_instr_addr[1] & ~instr_is_compressed);
+  // instr_cheri_exc_i.length_violation tells us whether the first halfword
+  // would cause an exception when fetched
+  assign instr_lower_exc = instr_cheri_exc_i.length_violation;
 
-  // all exception signals except the length violation are the same as the input
+  // if both halves of this access were disallowed, then it would definitely
+  // cause an exception regardless of whether we were just fetching the upper
+  // part or just the lower part
+  assign instr_cheri_len_exc = instr_lower_exc & instr_upper_exc_i;
+
   always_comb begin
-    instr_cheri_all_exc = instr_cheri_exc_i;
+    instr_cheri_all_exc                  = instr_cheri_exc_i;
+    // instr_cheri_all_exc.length_violation should be high only if there has definitely been an
+    // exception generated, which only happens when both halves of the fetch were disallowed
     instr_cheri_all_exc.length_violation = instr_cheri_len_exc;
+    instr_cheri_any_exc                  = |instr_cheri_all_exc;
   end
 
-  assign instr_cheri_err = |instr_cheri_all_exc;
-
-  assign instr_err = instr_intg_err
-                   | instr_bus_err_i
-                   | instr_cheri_err;
+  assign instr_err = instr_intg_err | instr_bus_err_i;
 
   assign instr_intg_err_o = instr_intg_err & instr_rvalid_i;
 
@@ -433,6 +441,8 @@ module ibex_if_stage import ibex_pkg::*; #(
         .addr_o              ( fetch_addr                 ),
         .err_o               ( fetch_err                  ),
         .err_plus2_o         ( fetch_err_plus2            ),
+        .cheri_err_o         ( fetch_cheri_err            ),
+        .cheri_len_err_o     ( fetch_cheri_len_err        ),
 
         .instr_req_o         ( instr_req_o                ),
         .instr_addr_o        ( instr_addr_o               ),
@@ -440,7 +450,14 @@ module ibex_if_stage import ibex_pkg::*; #(
         .instr_rvalid_i      ( instr_rvalid_i             ),
         .instr_rdata_i       ( instr_rdata_i[31:0]        ),
         .instr_err_i         ( instr_err                  ),
+        .instr_cheri_err_i         ( instr_cheri_any_exc  ),
+        .instr_cheri_lower_err_i   ( instr_lower_exc      ),
+        .instr_cheri_upper_err_i   ( instr_upper_exc_i    ),
+        .instr_cheri_upper_err_2_i ( instr_upper_exc_2_i  ),
 
+`ifdef RVFI
+        .perf_if_cheri_err_o ( perf_if_cheri_err_o        ),
+`endif
         .busy_o              ( prefetch_busy              )
     );
     // ICache tieoffs
@@ -494,8 +511,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   assign if_instr_pmp_err = pmp_err_if_i |
                             (if_instr_addr[2] & ~instr_is_compressed & pmp_err_if_plus2_i);
 
-  // Combine bus errors and pmp errors
-  assign if_instr_err = if_instr_bus_err | if_instr_pmp_err;
+  // Combine bus errors, pmp errors and cheri errors
+  assign if_instr_err = if_instr_bus_err | if_instr_pmp_err | if_instr_cheri_err;
 
   // Capture the second half of the address for errors on the second part of an instruction
   assign if_instr_err_plus2 = ((if_instr_addr[2] & ~instr_is_compressed & pmp_err_if_plus2_i) |
@@ -509,7 +526,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   ibex_compressed_decoder compressed_decoder_i (
     .clk_i          (clk_i),
     .rst_ni         (rst_ni),
-    .valid_i        (fetch_valid & ~fetch_err),
+    .valid_i        (fetch_valid & ~fetch_err & ~fetch_cheri_err),
     .instr_i        (if_instr_rdata),
     .instr_o        (instr_decompressed),
     .is_compressed_o(instr_is_compressed),
@@ -621,7 +638,7 @@ module ibex_if_stage import ibex_pkg::*; #(
           // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
           instr_rdata_alu_id_o     <= instr_out;
           instr_fetch_err_o        <= instr_err_out;
-          instr_cheri_err_o        <= instr_err_out & (fetch_imm ? instr_cheri_err : err_is_cheri_q);
+          instr_cheri_err_o        <= instr_err_out & if_instr_cheri_err;
           instr_fetch_err_plus2_o  <= if_instr_err_plus2;
           instr_rdata_c_id_o       <= if_instr_rdata[15:0];
           instr_is_compressed_id_o <= instr_is_compressed_out;
@@ -639,7 +656,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         // To reduce fan-out and help timing from the instr_rdata_id flops they are replicated.
         instr_rdata_alu_id_o     <= instr_out;
         instr_fetch_err_o        <= instr_err_out;
-        instr_cheri_err_o        <= instr_err_out & (fetch_imm ? instr_cheri_err : err_is_cheri_q);
+        instr_cheri_err_o        <= instr_err_out & if_instr_cheri_err;
         instr_fetch_err_plus2_o  <= if_instr_err_plus2;
         instr_rdata_c_id_o       <= if_instr_rdata[15:0];
         instr_is_compressed_id_o <= instr_is_compressed_out;
@@ -654,22 +671,9 @@ module ibex_if_stage import ibex_pkg::*; #(
   // TODO check ResetAll?
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      err_in_fifo_q       <= 0;
-      err_is_cheri_q      <= 0;
-      cheri_exc_q         <= 0;
-    end else if (pc_set_i) begin
-      // The error for the new PC will only arrive when the response arrives
-      // from memory, so we cannot have a new error in the FIFO this cycle
-      // either
-      err_in_fifo_q       <= 0;
-      err_is_cheri_q      <= 0;
-    end else if (instr_rvalid_i & (instr_bus_err_i | instr_cheri_err) & ~err_in_fifo_q) begin
-      // if there is an incoming instruction that has an error and there's
-      // not been an error before then this is a new error, so save the
-      // exception information
-      err_in_fifo_q       <= 1;
-      err_is_cheri_q      <= instr_cheri_err;
-      cheri_exc_q         <= instr_cheri_all_exc;
+      cheri_exc_q <= cheri_exc_t'(0);
+    end else if (instr_cheri_any_exc) begin
+      cheri_exc_q <= instr_cheri_all_exc;
     end
   end
 
@@ -818,11 +822,18 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign if_instr_rdata = fetch_rdata;
     assign if_instr_addr  = fetch_addr;
     assign if_instr_bus_err = fetch_err;
+    assign if_instr_cheri_err = fetch_cheri_err | fetch_cheri_len_err;
     assign fetch_ready = id_in_ready_i & ~stall_dummy_instr;
   end
 
   // CHERI exception output
-  assign instr_cheri_exc_o = fetch_imm ? instr_cheri_exc_i : cheri_exc_q;
+  always_comb begin
+    // When fetching instructions that are partially allowed by PCC bounds,
+    // the length violation information has to come from the prefetcher
+    instr_cheri_exc_o                  = cheri_exc_q;
+    instr_cheri_exc_o.length_violation = instr_cheri_exc_o.length_violation
+                                       | fetch_cheri_len_err;
+  end
 
   // The PCC that might be jumped to (depending on whether the pc_set_i signal
   // is high this cycle)

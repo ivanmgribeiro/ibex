@@ -145,6 +145,7 @@ module ibex_core import ibex_pkg::*; #(
   output logic                         perf_xret_o,
   output logic                         perf_jump_o,
   output logic                         perf_tbranch_o,
+  output logic                         perf_if_cheri_err_o,
 `endif
 
   // CPU Control Signals
@@ -215,10 +216,7 @@ module ibex_core import ibex_pkg::*; #(
   logic        lsu_load_intg_err;
   logic        lsu_load_misalign_err;
   logic        lsu_store_misalign_err;
-
-  // intermediate internal signal for data_we; this is overwritten by the
-  // CHERI memchecker when a store is disallowed
-  logic        data_we_int;
+  logic        lsu_cheri_err;
 
   // LSU signals
   logic        lsu_addr_incr_req;
@@ -308,7 +306,7 @@ module ibex_core import ibex_pkg::*; #(
   // CHERI exceptions
   cheri_exc_t cheri_exceptions_a_ex;
   cheri_exc_t cheri_exceptions_b_ex;
-  cheri_exc_t cheri_exceptions_lsu;
+  cheri_exc_t cheri_exceptions_lsu, cheri_exceptions_lsu_to_ctrl;
   cheri_exc_t cheri_exceptions_instr;
   cheri_exc_t cheri_exceptions_if; // IFetch exceptions to ID
   logic                     instr_upper_exc, instr_upper_exc_2;
@@ -518,6 +516,10 @@ module ibex_core import ibex_pkg::*; #(
     .pmp_err_if_i            (pmp_req_err[PMP_I]),
     .pmp_err_if_plus2_i      (pmp_req_err[PMP_I2]),
 
+`ifdef RVFI
+    .perf_if_cheri_err_o     (perf_if_cheri_err_o),
+`endif
+
     .instr_cheri_exc_o       (cheri_exceptions_if),
 
     // control signals
@@ -679,7 +681,7 @@ module ibex_core import ibex_pkg::*; #(
     // CHERI exceptions
     .cheri_exceptions_a_ex_i (cheri_exceptions_a_ex),
     .cheri_exceptions_b_ex_i (cheri_exceptions_b_ex),
-    .cheri_exceptions_lsu_i  (cheri_exceptions_lsu),
+    .cheri_exceptions_lsu_i  (cheri_exceptions_lsu_to_ctrl),
     .cheri_exceptions_if_i   (cheri_exceptions_if),
 
     .cheri_exc_cause_o       (cheri_exc_cause),
@@ -733,6 +735,7 @@ module ibex_core import ibex_pkg::*; #(
     .lsu_store_err_i    (lsu_store_err),
     .lsu_load_misalign_err_i (lsu_load_misalign_err),
     .lsu_store_misalign_err_i(lsu_store_misalign_err),
+    .lsu_cheri_err_i    (lsu_cheri_err),
 
     // Interrupt Signals
     .csr_mstatus_mie_i(csr_mstatus_mie),
@@ -881,10 +884,10 @@ module ibex_core import ibex_pkg::*; #(
     .data_rvalid_i (data_rvalid_i),
     .data_bus_err_i(data_err_i),
     .data_pmp_err_i(pmp_req_err[PMP_D]),
-    .data_cheri_err_i(cheri_exceptions_lsu),
+    .cheri_err_info_i(cheri_exceptions_lsu),
 
     .data_addr_o        (data_addr_o),
-    .data_we_o          (data_we_int),
+    .data_we_o          (data_we_o),
     .data_be_o          (data_be_o),
     .data_wdata_o       (data_wdata_o),
     .data_rdata_i       (data_rdata_i),
@@ -921,6 +924,8 @@ module ibex_core import ibex_pkg::*; #(
     .load_intg_err_o(lsu_load_intg_err),
     .load_misalign_err_o (lsu_load_misalign_err),
     .store_misalign_err_o(lsu_store_misalign_err),
+    .cheri_err_o         (lsu_cheri_err),
+    .cheri_err_info_o    (cheri_exceptions_lsu_to_ctrl),
 
     .busy_o(lsu_busy),
 
@@ -1057,23 +1062,14 @@ module ibex_core import ibex_pkg::*; #(
 
   ibex_cheri_memchecker #(
     .DataMem      (1'b1),
-    .StableOut    (1'b0),
     .CheriCapWidth(CheriCapWidth)
   ) cheri_data_memchecker_i (
-    .clk_i (clk_i),
-    .rst_ni(rst_ni),
-
     .auth_cap_i         (lsu_mem_auth_cap),
-    .data_req_i         (data_req_out),
-    .data_gnt_i         (data_gnt_i),
-    .data_rvalid_i      (data_rvalid_i),
     .data_addr_i        (data_addr_o),
-    .data_we_i          (data_we_int),
+    .data_we_i          (data_we_o),
     .data_type_i        (lsu_type),
     .data_be_i          (data_be_o),
     .data_cap_i         (lsu_wcap),
-    .data_first_access_i(lsu_data_first_access),
-    .data_we_o          (data_we_o),
     .cheri_mem_exc_o    (cheri_exceptions_lsu),
     .instr_upper_exc_o  (), // unused for data checker
     .instr_upper_exc_2_o()  // unused for data checker
@@ -1081,23 +1077,14 @@ module ibex_core import ibex_pkg::*; #(
 
   ibex_cheri_memchecker #(
     .DataMem      (1'b0),
-    .StableOut    (1'b1),
     .CheriCapWidth(CheriCapWidth)
   ) cheri_instr_memchecker_i (
-    .clk_i (clk_i),
-    .rst_ni(rst_ni),
-
     .auth_cap_i         (instr_fetch_auth),
-    .data_req_i         (instr_req_o),
-    .data_gnt_i         (instr_gnt_i),
-    .data_rvalid_i      (instr_rvalid_i),
     .data_addr_i        (instr_addr_o),
     .data_we_i          (1'b0),
     .data_type_i        (2'bX),  // unused for instruction checker
     .data_be_i          (4'bX),  // unused for instruction checker
     .data_cap_i         (1'b0), // no capability accesses via instruction interface
-    .data_first_access_i(),   //unused for instruction checker
-    .data_we_o          (),      // unused for instruction checker
     .cheri_mem_exc_o    (cheri_exceptions_instr),
     .instr_upper_exc_o  (instr_upper_exc),
     .instr_upper_exc_2_o(instr_upper_exc_2)

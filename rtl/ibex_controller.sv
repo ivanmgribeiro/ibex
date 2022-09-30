@@ -63,6 +63,7 @@ module ibex_controller #(
   input  logic                  store_err_i,
   input  logic                  load_misalign_err_i,
   input  logic                  store_misalign_err_i,
+  input  logic                  lsu_cheri_err_i,
   output logic                  wb_exception_o,          // Instruction in WB taking an exception
   output logic                  id_exception_o,          // Instruction in ID taking an exception
 
@@ -217,7 +218,7 @@ module ibex_controller #(
   assign store_err_d = store_err_i;
   assign load_misalign_err_d = load_misalign_err_i;
   assign store_misalign_err_d = store_misalign_err_i;
-  assign cheri_lsu_err_d = |cheri_exceptions_lsu_i;
+  assign cheri_lsu_err_d = lsu_cheri_err_i;
   assign cheri_err_d = cheri_exc;
 
   // Decoder doesn't take instr_valid into account, factor it in here.
@@ -259,7 +260,7 @@ module ibex_controller #(
                      (ctrl_fsm_cs != FLUSH);
 
   // LSU exception requests
-  assign exc_req_lsu = store_err_i | load_err_i | store_misalign_err_i | load_misalign_err_i | |cheri_exceptions_lsu_i;
+  assign exc_req_lsu = store_err_i | load_err_i | store_misalign_err_i | load_misalign_err_i | lsu_cheri_err_i;
 
   assign id_exception_o = exc_req_d;
 
@@ -322,7 +323,7 @@ module ibex_controller #(
 
     // Instruction in writeback is generating an exception so instruction in ID must not execute
     assign wb_exception_o = load_err_q | store_err_q | cheri_lsu_err_q | cheri_err_q | cheri_exc
-                          | load_err_i | store_err_i | |cheri_exceptions_lsu_i
+                          | load_err_i | store_err_i | lsu_cheri_err_i
                           | load_misalign_err_q | load_misalign_err_i
                           | store_misalign_err_q | store_misalign_err_i;;
   end else begin : g_no_wb_exceptions

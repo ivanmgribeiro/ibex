@@ -29,7 +29,7 @@ module ibex_load_store_unit #(
   input  logic         data_rvalid_i,
   input  logic         data_bus_err_i,
   input  logic         data_pmp_err_i,
-  input  ibex_pkg::cheri_exc_t data_cheri_err_i,
+  input  ibex_pkg::cheri_exc_t cheri_err_info_i,
 
   output logic [31:0]             data_addr_o,
   output logic                    data_we_o,
@@ -77,12 +77,15 @@ module ibex_load_store_unit #(
   output logic         load_intg_err_o,
   output logic         load_misalign_err_o,
   output logic         store_misalign_err_o,
+  output logic         cheri_err_o,
+  output ibex_pkg::cheri_exc_t cheri_err_info_o,
 
   output logic         busy_o,
 
   output logic         perf_load_o,
   output logic         perf_store_o
 );
+  import ibex_pkg::*;
 
   logic [31:0]  data_addr, data_addr_int;
   logic [31:0]  data_addr_w_aligned;
@@ -117,8 +120,11 @@ module ibex_load_store_unit #(
   logic         lsu_err_q, lsu_err_d;
   logic         lsu_misalign_err_q, lsu_misalign_err_d;
   logic         data_intg_err, data_or_pmp_err;
-  logic         data_cheri_err_any;
-  assign        data_cheri_err_any = |data_cheri_err_i;
+  cheri_exc_t   cheri_err_info_q, cheri_err_info_d;
+  logic         cheri_err_any_q, cheri_err_any_d;
+  // bitwise or of the CHERI error input
+  logic         cheri_err_or;
+  assign        cheri_err_or = |cheri_err_info_i;
 
   logic [64:0]  wdata_mem_cap;
   logic [32:0]  rdata_mem_cap_lower_q;
@@ -420,14 +426,24 @@ module ibex_load_store_unit #(
     perf_load_o         = 1'b0;
     perf_store_o        = 1'b0;
 
+    cheri_err_info_d    = cheri_err_info_q;
+    cheri_err_any_d     = 1'b0;
+
     unique case (ls_fsm_cs)
 
       IDLE: begin
         pmp_err_d = 1'b0;
         if (lsu_req_i) begin
-          // if this is an unaligned capability access, cause an exception and
-          // do not make an access
-          if (lsu_wcap_i & |data_addr[2:0]) begin
+          if (cheri_err_or) begin
+            // if this access will cause a CHERI error, cause an exception and
+            // do not make an access
+            lsu_err_d        = 1'b1;
+            cheri_err_info_d = cheri_err_info_i;
+            cheri_err_any_d  = 1'b1;
+            ctrl_update      = 1'b1;
+          end else if (lsu_wcap_i & |data_addr[2:0]) begin
+            // if this is an unaligned capability access, cause an exception and
+            // do not make an access
             lsu_err_d          = 1'b1;
             lsu_misalign_err_d = 1'b1;
             ctrl_update        = 1'b1;
@@ -481,13 +497,13 @@ module ibex_load_store_unit #(
           // Update the PMP error for the second part
           pmp_err_d = data_pmp_err_i;
           // Record the error status of the first part
-          lsu_err_d = data_bus_err_i | pmp_err_q | data_cheri_err_any;
+          lsu_err_d = data_bus_err_i | pmp_err_q;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // If already granted, wait for second rvalid
           ls_fsm_ns = data_gnt_i ? IDLE : WAIT_GNT;
           // Update the address for the second part, if no error
-          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q | data_cheri_err_any);
+          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q);
           // clear handle_misaligned if second request is granted
           handle_misaligned_d = ~data_gnt_i;
         end else begin
@@ -523,9 +539,9 @@ module ibex_load_store_unit #(
           // Update the pmp error for the second part
           pmp_err_d = data_pmp_err_i;
           // The first part cannot see a PMP error in this state
-          lsu_err_d = data_bus_err_i | data_cheri_err_any;
+          lsu_err_d = data_bus_err_i;
           // Now we can update the address for the second part if no error
-          addr_update = ~data_bus_err_i & ~data_cheri_err_any;
+          addr_update = ~data_bus_err_i;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // Wait for second rvalid
@@ -559,13 +575,13 @@ module ibex_load_store_unit #(
           // Update the PMP error for the second part
           pmp_err_d = data_pmp_err_i;
           // Record the error status of the first part
-          lsu_err_d = data_bus_err_i | pmp_err_q | data_cheri_err_any;
+          lsu_err_d = data_bus_err_i | pmp_err_q;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // If already granted, wait for second rvalid
           ls_fsm_ns = data_gnt_i ? IDLE : WAIT_GNT;
           // Update the address for the second part, if no error
-          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q | data_cheri_err_any);
+          addr_update = data_gnt_i & ~(data_bus_err_i | pmp_err_q);
           // clear handle_misaligned if second request is granted
           handle_misaligned_d = ~data_gnt_i;
           lsu_wupper_d = ~data_gnt_i;
@@ -589,9 +605,9 @@ module ibex_load_store_unit #(
           // Update the pmp error for the second part
           pmp_err_d = data_pmp_err_i;
           // The first part cannot see a PMP error in this state
-          lsu_err_d = data_bus_err_i | data_cheri_err_any;
+          lsu_err_d = data_bus_err_i;
           // Now we can update the address for the second part if no error
-          addr_update = ~data_bus_err_i & ~data_cheri_err_any;
+          addr_update = ~data_bus_err_i;
           // Capture the first rdata for loads
           rdata_update = ~data_we_q;
           // Wait for second rvalid
@@ -615,6 +631,8 @@ module ibex_load_store_unit #(
       pmp_err_q           <= '0;
       lsu_err_q           <= '0;
       lsu_misalign_err_q  <= '0;
+      cheri_err_any_q     <= '0;
+      cheri_err_info_q    <= cheri_exc_t'(0);
     end else begin
       ls_fsm_cs           <= ls_fsm_ns;
       handle_misaligned_q <= handle_misaligned_d;
@@ -622,6 +640,8 @@ module ibex_load_store_unit #(
       pmp_err_q           <= pmp_err_d;
       lsu_err_q           <= lsu_err_d;
       lsu_misalign_err_q  <= lsu_misalign_err_d;
+      cheri_err_any_q     <= cheri_err_any_d;
+      cheri_err_info_q    <= cheri_err_info_d;
     end
   end
 
@@ -629,8 +649,8 @@ module ibex_load_store_unit #(
   // Outputs //
   /////////////
 
-  assign data_or_pmp_err    = lsu_err_q | data_bus_err_i | pmp_err_q | data_cheri_err_any;
-  assign lsu_resp_valid_o   = (data_rvalid_i | pmp_err_q) & (ls_fsm_cs == IDLE);
+  assign data_or_pmp_err    = lsu_err_q | data_bus_err_i | pmp_err_q;
+  assign lsu_resp_valid_o   = (data_rvalid_i | pmp_err_q | cheri_err_any_q) & (ls_fsm_cs == IDLE);
   assign lsu_rdata_valid_o  =
     (ls_fsm_cs == IDLE) & data_rvalid_i & ~data_or_pmp_err & ~data_we_q & ~data_intg_err;
 
@@ -666,8 +686,10 @@ module ibex_load_store_unit #(
   // Signal a load or store error depending on the transaction type outstanding
   assign load_err_o       = data_or_pmp_err & ~data_we_q & lsu_resp_valid_o;
   assign store_err_o      = data_or_pmp_err &  data_we_q & lsu_resp_valid_o;
+  assign cheri_err_o      = cheri_err_any_q & lsu_resp_valid_o;
   assign load_misalign_err_o  = lsu_misalign_err_q & ~data_we_q;
   assign store_misalign_err_o = lsu_misalign_err_q &  data_we_q;
+  assign cheri_err_info_o     = cheri_err_info_q;
   // Integrity errors are their own category for timing reasons. load_err_o is factored directly
   // into data_req_o to enable synchronous exception on load errors without performance loss (An
   // upcoming load cannot request until the current load has seen its response, so the earliest

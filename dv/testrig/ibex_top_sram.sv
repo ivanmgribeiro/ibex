@@ -117,6 +117,7 @@ module ibex_top_sram import ibex_pkg::*; #(
   output logic                         perf_xret_o,
   output logic                         perf_jump_o,
   output logic                         perf_tbranch_o,
+  output logic                         perf_if_cheri_err_o,
 `endif
 
   // CPU Control Signals
@@ -232,6 +233,7 @@ module ibex_top_sram import ibex_pkg::*; #(
     .perf_xret_o,
     .perf_jump_o,
     .perf_tbranch_o,
+    .perf_if_cheri_err_o,
 `endif
 
     .fetch_enable_i,
