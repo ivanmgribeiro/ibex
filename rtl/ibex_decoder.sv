@@ -719,6 +719,7 @@ module ibex_decoder #(
       end
 
       OPCODE_CHERI: begin
+        rf_wdata_sel_o       = RF_WD_CHERI;
         unique case (cheri_base_opcode)
           C_SET_BOUNDS_IMM, C_INC_OFFSET_IMM: begin
             rf_we = 1'b1;
@@ -765,6 +766,7 @@ module ibex_decoder #(
                             //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
                             ) begin
                   // nothing to do, but not illegal instruction
+                  rf_wdata_sel_o        = RF_WD_CSR;
                 end else begin
                   illegal_insn = 1'b1;
                 end
@@ -1498,7 +1500,6 @@ module ibex_decoder #(
         cheri_en_o           = 1'b1;
         cheri_a_en_o         = 1'b1;
         cheri_op_a_mux_sel_o = CHERI_OP_A_REG_CAP;
-        rf_wdata_sel_o       = RF_WD_CHERI;
 
         unique case (cheri_base_opcode)
           C_SET_BOUNDS_IMM, C_INC_OFFSET_IMM: begin
@@ -1568,7 +1569,6 @@ module ibex_decoder #(
                             //|(rf_raddr_b_o == SCR_UEPCC                  ) // User mode
                             ) begin
                   scr_access_o          = 1'b1;
-                  rf_wdata_sel_o        = RF_WD_CSR;
                   scr_op_o              = scr_op_e'({rf_waddr_o != '0, rf_raddr_a_o != '0});
                   cheri_en_o            = 1'b1;
                   cheri_op_b_mux_sel_o  = CHERI_OP_B_IMM;
