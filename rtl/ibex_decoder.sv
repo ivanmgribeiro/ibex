@@ -750,9 +750,9 @@ module ibex_decoder #(
               C_SPECIAL_RW: begin
                 rf_we = 1'b1;
                 if ((rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) // writing to PCC is illegal
-                   |(rf_raddr_b_o == SCR_DDC                    )
                    ) begin
-                end else if ((rf_raddr_b_o == SCR_MTCC     ) // Machine mode
+                end else if ((rf_raddr_b_o == SCR_DDC      )
+                            |(rf_raddr_b_o == SCR_MTCC     ) // Machine mode
                             |(rf_raddr_b_o == SCR_MTDC     ) // Machine mode
                             |(rf_raddr_b_o == SCR_MSCRATCHC) // Machine mode
                             |(rf_raddr_b_o == SCR_MEPCC    ) // Machine mode
@@ -1545,12 +1545,6 @@ module ibex_decoder #(
                 if (rf_raddr_b_o == SCR_PCC & rf_raddr_a_o == 0) begin
                   // simple instruction; just read PCC
                   cheri_op_a_mux_sel_o   = CHERI_OP_A_PCC;
-                  cheri_base_opcode_o    = THREE_OP;
-                  cheri_threeop_opcode_o = SOURCE_AND_DEST;
-                  cheri_s_a_d_opcode_o   = C_MOVE;
-                end else if (rf_raddr_b_o == SCR_DDC & rf_raddr_a_o == 0) begin
-                  // simple instruction; just read DDC
-                  cheri_op_a_mux_sel_o   = CHERI_OP_A_REG_DDC;
                   cheri_base_opcode_o    = THREE_OP;
                   cheri_threeop_opcode_o = SOURCE_AND_DEST;
                   cheri_s_a_d_opcode_o   = C_MOVE;
