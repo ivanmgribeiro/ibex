@@ -950,12 +950,12 @@ module_wrap64_isInBounds module_isInBounds_b (
       .wrap64_isInBounds (b_isInBounds_o));
 
 module_wrap64_getRepresentableAlignmentMask module_getRepresentableAlignmentMask_a (
-      .wrap64_getRepresentableAlignmentMask_dummy  ('X),
+      .wrap64_getRepresentableAlignmentMask_dummy  (operand_a_i),
       .wrap64_getRepresentableAlignmentMask_length (a_getRepAlignMask_i),
       .wrap64_getRepresentableAlignmentMask        (a_getRepAlignMask_o));
 
 module_wrap64_getRepresentableLength module_getRepresentableLength_a (
-      .wrap64_getRepresentableLength_dummy  ('X),
+      .wrap64_getRepresentableLength_dummy  (operand_a_i),
       .wrap64_getRepresentableLength_length (a_getRepLen_i),
       .wrap64_getRepresentableLength        (a_getRepLen_o));
 
