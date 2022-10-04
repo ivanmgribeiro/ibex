@@ -24,17 +24,15 @@ module ibex_fetch_fifo #(
   output logic [NUM_REQS-1:0] busy_o,
 
   // input port
-  input  logic                in_valid_i,
-  input  logic [31:0]         in_addr_i,
-  input  logic [31:0]         in_rdata_i,
-  input  logic                in_err_i,
-  // CHERI exceptions that definitely occurred; does not include cases where
-  // at least one halfword of a fetch was allowed
-  // If this is high, the request did not make it out to the bus
-  input  logic                in_cheri_err_i,
+  input  logic                          in_valid_i,
+  input  logic [31:0]                   in_addr_i,
+  input  logic [31:0]                   in_rdata_i,
+  input  logic                          in_err_i,
+  // CHERI instruction exceptions (excluding length)
+  input  ibex_pkg::cheri_instr_exc_t    in_cheri_err_i,
   // whether the lower or upper halves of the fetch would cause exceptions, respectively
-  input  logic                in_cheri_lower_err_i,
-  input  logic                in_cheri_upper_err_i,
+  input  logic                          in_cheri_lower_err_i,
+  input  logic                          in_cheri_upper_err_i,
   // Used in RVFI-DII with TestRIG. The TestRIG simulation ignores the
   // instruction request address and inserts a full instruction into the
   // rdata.
@@ -45,22 +43,25 @@ module ibex_fetch_fifo #(
   // instruction fetch is not checked by the memory checker
   // This signal tells us whether fetching the second half of that instruction
   // would have resulted in an exception
-  input  logic                in_cheri_upper_err_2_i,
+  input  logic                          in_cheri_upper_err_2_i,
 
   // output port
-  output logic                out_valid_o,
-  output logic                out_imm_o, // whether the input has immediately been connected to the output
-  input  logic                out_ready_i,
-  output logic [31:0]         out_addr_o,
-  output logic [31:0]         out_rdata_o,
-  output logic                out_err_o,
-  output logic                out_err_plus2_o,
-  output logic                out_cheri_err_o,
+  output logic                       out_valid_o,
+  output logic                       out_imm_o, // whether the input has immediately
+                                                // been connected to the output
+  input  logic                       out_ready_i,
+  output logic [31:0]                out_addr_o,
+  output logic [31:0]                out_rdata_o,
+  output logic                       out_err_o,
+  output logic                       out_err_plus2_o,
+  // non-length instruction fetch exceptions
+  output ibex_pkg::cheri_instr_exc_t out_cheri_err_o,
   // Whether the instruction being output caused a length exception.
   // Needed because we do not know on fetch whether the instruction being
   // fetched and the ones in the FIFO are compressed or not
-  output logic                out_cheri_len_err_o
+  output logic                       out_cheri_len_err_o
 );
+  import ibex_pkg::*;
 
   localparam int unsigned DEPTH = NUM_REQS+1;
 
@@ -69,7 +70,8 @@ module ibex_fetch_fifo #(
   logic [DEPTH-1:0]         err_d,     err_q;
   // Store CHERI errors in the FIFO the same way that instruction
   // data is propagated
-  logic [DEPTH-1:0]         cheri_err_d, cheri_err_q;
+  cheri_instr_exc_t         cheri_instr_err_d [DEPTH];
+  cheri_instr_exc_t         cheri_instr_err_q [DEPTH];
   logic [DEPTH-1:0]         cheri_lower_err_d, cheri_lower_err_q;
   logic [DEPTH-1:0]         cheri_upper_err_d, cheri_upper_err_q;
   logic [DEPTH-1:0]         cheri_upper_err_2_d, cheri_upper_err_2_q;
@@ -80,7 +82,8 @@ module ibex_fetch_fifo #(
 
   logic                     pop_fifo;
   logic             [31:0]  rdata, rdata_unaligned;
-  logic                     err,   err_unaligned, err_plus2, cheri_err;
+  logic                     err,   err_unaligned, err_plus2;
+  cheri_instr_exc_t         cheri_instr_err;
   logic                     cheri_lower_err, cheri_upper_err, cheri_upper_err_2;
   logic                     cheri_lower_err_unaligned;
   logic                     valid, valid_unaligned;
@@ -99,7 +102,7 @@ module ibex_fetch_fifo #(
 
   assign rdata             = valid_q[0] ? rdata_q[0]             : in_rdata_i;
   assign err               = valid_q[0] ? err_q[0]               : in_err_i;
-  assign cheri_err         = valid_q[0] ? cheri_err_q[0]         : in_cheri_err_i;
+  assign cheri_instr_err   = valid_q[0] ? cheri_instr_err_q[0]   : in_cheri_err_i;
   assign cheri_lower_err   = valid_q[0] ? cheri_lower_err_q[0]   : in_cheri_lower_err_i;
   assign cheri_upper_err   = valid_q[0] ? cheri_upper_err_q[0]   : in_cheri_upper_err_i;
   assign cheri_upper_err_2 = valid_q[0] ? cheri_upper_err_2_q[0] : in_cheri_upper_err_2_i;
@@ -159,7 +162,7 @@ module ibex_fetch_fifo #(
       // unaligned case
       out_rdata_o     = rdata_unaligned;
       out_err_o       = err_unaligned;
-      out_cheri_err_o = cheri_err;
+      out_cheri_err_o = cheri_instr_err;
       out_err_plus2_o = err_plus2;
       out_cheri_len_err_o = cheri_upper_err
                           | (~unaligned_is_compressed & cheri_lower_err_unaligned);
@@ -174,7 +177,7 @@ module ibex_fetch_fifo #(
       out_rdata_o     = rdata;
       out_err_o       = err;
       out_err_plus2_o = 1'b0;
-      out_cheri_err_o = cheri_err;
+      out_cheri_err_o = cheri_instr_err;
       out_cheri_len_err_o = cheri_lower_err
                           | (cheri_upper_err & ~aligned_is_compressed);
       out_valid_o     = valid;
@@ -267,7 +270,7 @@ module ibex_fetch_fifo #(
     // take the next entry or the incoming data
     assign rdata_d[i]  = valid_q[i+1] ? rdata_q[i+1] : in_rdata_i;
     assign err_d  [i]  = valid_q[i+1] ? err_q  [i+1] : in_err_i;
-    assign cheri_err_d[i]         = valid_q[i+1] ? cheri_err_q[i+1]         : in_cheri_err_i;
+    assign cheri_instr_err_d[i]   = valid_q[i+1] ? cheri_instr_err_q[i+1]   : in_cheri_err_i;
     assign cheri_lower_err_d[i]   = valid_q[i+1] ? cheri_lower_err_q[i+1]   : in_cheri_lower_err_i;
     assign cheri_upper_err_d[i]   = valid_q[i+1] ? cheri_upper_err_q[i+1]   : in_cheri_upper_err_i;
     assign cheri_upper_err_2_d[i] = valid_q[i+1] ? cheri_upper_err_2_q[i+1] : in_cheri_upper_err_2_i;
@@ -280,7 +283,7 @@ module ibex_fetch_fifo #(
   assign entry_en[DEPTH-1]          = in_valid_i & lowest_free_entry[DEPTH-1];
   assign rdata_d [DEPTH-1]          = in_rdata_i;
   assign err_d   [DEPTH-1]          = in_err_i;
-  assign cheri_err_d[DEPTH-1]       = in_cheri_err_i;
+  assign cheri_instr_err_d[DEPTH-1] = in_cheri_err_i;
   assign cheri_lower_err_d[DEPTH-1] = in_cheri_lower_err_i;
   assign cheri_upper_err_d[DEPTH-1] = in_cheri_upper_err_i;
   assign cheri_upper_err_2_d[DEPTH-1] = in_cheri_upper_err_2_i;
@@ -303,14 +306,14 @@ module ibex_fetch_fifo #(
         if (!rst_ni) begin
           rdata_q[i] <= '0;
           err_q[i]   <= '0;
-          cheri_err_q[i]         <= '0;
+          cheri_instr_err_q[i]   <= cheri_instr_exc_t'(0);
           cheri_lower_err_q[i]   <= '0;
           cheri_upper_err_q[i]   <= '0;
           cheri_upper_err_2_q[i] <= '0;
         end else if (entry_en[i]) begin
           rdata_q[i] <= rdata_d[i];
           err_q[i]   <= err_d[i];
-          cheri_err_q[i]         <= cheri_err_d[i];
+          cheri_instr_err_q[i]   <= cheri_instr_err_d[i];
           cheri_lower_err_q[i]   <= cheri_lower_err_d[i];
           cheri_upper_err_q[i]   <= cheri_upper_err_d[i];
           cheri_upper_err_2_q[i] <= cheri_upper_err_2_d[i];
@@ -321,7 +324,7 @@ module ibex_fetch_fifo #(
         if (entry_en[i]) begin
           rdata_q[i] <= rdata_d[i];
           err_q[i]   <= err_d[i];
-          cheri_err_q[i]         <= cheri_err_d[i];
+          cheri_instr_err_q[i]   <= cheri_instr_err_d[i];
           cheri_lower_err_q[i]   <= cheri_lower_err_d[i];
           cheri_upper_err_q[i]   <= cheri_upper_err_d[i];
           cheri_upper_err_2_q[i] <= cheri_upper_err_2_d[i];

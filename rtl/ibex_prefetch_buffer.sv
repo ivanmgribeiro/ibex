@@ -20,38 +20,38 @@ module ibex_prefetch_buffer #(
   input  logic        branch_i,
   input  logic [31:0] addr_i,
 
-  input  logic        ready_i,
-  output logic        valid_o,
-  output logic        imm_o,
-  output logic [31:0] rdata_o,
-  output logic [31:0] addr_o,
-  output logic        err_o,
-  output logic        cheri_err_o,
-  output logic        cheri_len_err_o,
-  output logic        err_plus2_o,
+  input  logic                       ready_i,
+  output logic                       valid_o,
+  output logic                       imm_o,
+  output logic [31:0]                rdata_o,
+  output logic [31:0]                addr_o,
+  output logic                       err_o,
+  output ibex_pkg::cheri_instr_exc_t cheri_err_o,
+  output logic                       cheri_len_err_o,
+  output logic                       err_plus2_o,
 
   // goes to instruction memory / instruction cache
-  output logic        instr_req_o,
-  input  logic        instr_gnt_i,
-  output logic [31:0] instr_addr_o,
-  input  logic [31:0] instr_rdata_i,
-  input  logic        instr_err_i,
-  input  logic        instr_rvalid_i,
+  output logic                       instr_req_o,
+  input  logic                       instr_gnt_i,
+  output logic [31:0]                instr_addr_o,
+  input  logic [31:0]                instr_rdata_i,
+  input  logic                       instr_err_i,
+  input  logic                       instr_rvalid_i,
   // CHERI errors are received in the same cycle that a request goes out
   // This signals exceptions that are guaranteed to have happened
   // The only exceptions that are not guaranteed are length exceptions in the
   // case that either halfword within the fetch would have been allowed,
   // because we do not know when the request is made whether that access is
   // for the upper or lower half of the word
-  input  logic        instr_cheri_err_i,
+  input  ibex_pkg::cheri_instr_exc_t instr_cheri_err_i,
   // these two signals respectively indicate whether the lower or upper half of
   // the fetch would cause an exception
   // We don't know whether an exception is actually thrown until we know which
   // half was actually fetched, which we only know when the instruction is
   // being returned by the fetch fifo
-  input  logic        instr_cheri_lower_err_i,
-  input  logic        instr_cheri_upper_err_i,
-  input  logic        instr_cheri_upper_err_2_i,
+  input  logic                       instr_cheri_lower_err_i,
+  input  logic                       instr_cheri_upper_err_i,
+  input  logic                       instr_cheri_upper_err_2_i,
 
 `ifdef RVFI
   output logic        perf_if_cheri_err_o,
@@ -60,6 +60,7 @@ module ibex_prefetch_buffer #(
   // Prefetch Buffer Status
   output logic        busy_o
 );
+  import ibex_pkg::*;
 
   localparam int unsigned NUM_REQS  = 2;
 
@@ -70,11 +71,12 @@ module ibex_prefetch_buffer #(
   logic [NUM_REQS-1:0] branch_discard_n, branch_discard_s, branch_discard_q;
   logic [NUM_REQS-1:0] rdata_outstanding_rev;
   logic                rdata_outstanding_any;
-  // store whether there was a guaranteed CHERI exception last cycle
-  logic                instr_cheri_err_q;
 
   // Keep track of the errors when requests are made to sync these with the
   // response when we receive it
+  cheri_instr_exc_t    errs_outstanding_n [NUM_REQS];
+  cheri_instr_exc_t    errs_outstanding_s [NUM_REQS];
+  cheri_instr_exc_t    errs_outstanding_q [NUM_REQS];
   logic [NUM_REQS-1:0] errl_outstanding_n,  errl_outstanding_s,  errl_outstanding_q;
   logic [NUM_REQS-1:0] erru_outstanding_n,  erru_outstanding_s,  erru_outstanding_q;
   logic [NUM_REQS-1:0] erru2_outstanding_n, erru2_outstanding_s, erru2_outstanding_q;
@@ -90,7 +92,8 @@ module ibex_prefetch_buffer #(
   logic                fifo_ready;
   logic                fifo_clear;
   logic [NUM_REQS-1:0] fifo_busy;
-  logic                fifo_cheri_err, fifo_lower_err, fifo_upper_err, fifo_upper_err_2;
+  logic                fifo_lower_err, fifo_upper_err, fifo_upper_err_2;
+  cheri_instr_exc_t    fifo_cheri_err;
 
   ////////////////////////////
   // Prefetch buffer status //
@@ -100,7 +103,7 @@ module ibex_prefetch_buffer #(
   assign rdata_outstanding_any = |rdata_outstanding_q;
   assign busy_o = rdata_outstanding_any | instr_req_o;
 `ifdef RVFI
-  assign perf_if_cheri_err_o = valid_req & ~valid_req_q & instr_cheri_err_i;
+  assign perf_if_cheri_err_o = 1'b0;
 `endif
 
   //////////////////////////////////////////////
@@ -169,12 +172,12 @@ module ibex_prefetch_buffer #(
   // it to the bus but was not granted
   // Since requests that cause a CHERI error do not make it to the bus, we do
   // not want to track whether we receive a response for them on the bus
-  assign valid_req_d = valid_req & ~instr_gnt_i & ~instr_cheri_err_i;
+  assign valid_req_d = valid_req & ~instr_gnt_i;
 
   // If there is a CHERI error, don't issue the request
   // The request is still valid within this module, the same way that
   // a request which causes a bus error is still valid
-  assign valid_req_out = valid_req & ~instr_cheri_err_i;
+  assign valid_req_out = valid_req;
 
   // Record whether an outstanding bus request is cancelled by a branch
   assign discard_req_d = valid_req_q & (branch_i | discard_req_q);
@@ -250,7 +253,6 @@ module ibex_prefetch_buffer #(
   // stable to maintain the exception
   assign instr_addr = valid_req_q       ? stored_addr_q :
                       branch_i          ? addr_i :
-                      instr_cheri_err_q ? stored_addr_q :
                                           fetch_addr_q;
 
   assign instr_addr_w_aligned = {instr_addr[31:2], 2'b00};
@@ -274,6 +276,9 @@ module ibex_prefetch_buffer #(
       // If there is a request that is granted and returning an error, and
       // this entry is not already full, then set it
       // otherwise maintain this entry if it is full
+      assign errs_outstanding_n[i] = (valid_req_out & instr_gnt_i & ~rdata_outstanding_q[i]) ? instr_cheri_err_i
+                                   : (rdata_outstanding_q[i]) ? errs_outstanding_q[i]
+                                   : cheri_instr_exc_t'(0);
       assign errl_outstanding_n[i] = (valid_req_out & instr_gnt_i & instr_cheri_lower_err_i &
                                       ~rdata_outstanding_q[i])
                                    | (errl_outstanding_q[i] & rdata_outstanding_q[i]);
@@ -299,6 +304,10 @@ module ibex_prefetch_buffer #(
       // and the entry below this one is already populated and this entry is
       // not populated, then set this entry
       // otherwise if this is already populated, maintain the value
+      assign errs_outstanding_n[i] = (valid_req_out & instr_gnt_i & rdata_outstanding_q[i-1]
+                                      & ~rdata_outstanding_q[i]) ? instr_cheri_err_i
+                                   : rdata_outstanding_q[i] ? errs_outstanding_q[i]
+                                   : cheri_instr_exc_t'(0);
       assign errl_outstanding_n[i] = (valid_req_out & instr_gnt_i & instr_cheri_lower_err_i &
                                       rdata_outstanding_q[i-1] & ~rdata_outstanding_q[i])
                                    | (errl_outstanding_q[i] & rdata_outstanding_q[i]);
@@ -322,22 +331,24 @@ module ibex_prefetch_buffer #(
                                                 erru_outstanding_n;
   assign erru2_outstanding_s = instr_rvalid_i ? {1'b0,erru2_outstanding_n[NUM_REQS-1:1]} :
                                                 erru2_outstanding_n;
+  for (genvar i = 0; i < NUM_REQS; i++) begin : g_shifted_errs_outstanding
+    if (i == NUM_REQS-1) begin : g_shifted_errs_top
+      assign errs_outstanding_s[i] = instr_rvalid_i ?   cheri_instr_exc_t'(0) : errs_outstanding_n[i];
+    end else begin : g_shifter_errs_rest
+      assign errs_outstanding_s[i] = instr_rvalid_i ? errs_outstanding_n[i+1] : errs_outstanding_n[i];
+    end
+  end
 
   // Push a new entry to the FIFO once complete (and not cancelled by a branch).
   // Also push when there is no outstanding rdata and we are making a new
   // request that raises a CHERI error
-  assign fifo_valid = (instr_rvalid_i & ~branch_discard_q[0])
-                    | (~rdata_outstanding_any & instr_cheri_err_i & valid_new_req);
+  assign fifo_valid = (instr_rvalid_i & ~branch_discard_q[0]);
 
   assign fifo_addr = addr_i;
 
-  // These types of errors halt the generation of new requests until all
-  // outstanding requests have responded, and only then will be inserted into
-  // the fetch fifo
-  assign fifo_cheri_err   = instr_cheri_err_i         & ~rdata_outstanding_any;
-
   // These types of errors do not halt the generation of requests, and the
   // queue for them is synchronised with the queue of outstanding requests
+  assign fifo_cheri_err   = errs_outstanding_q[0];
   assign fifo_lower_err   = errl_outstanding_q[0];
   assign fifo_upper_err   = erru_outstanding_q[0];
   assign fifo_upper_err_2 = erru2_outstanding_q[0];
@@ -352,7 +363,9 @@ module ibex_prefetch_buffer #(
       discard_req_q        <= 1'b0;
       rdata_outstanding_q  <= 'b0;
       branch_discard_q     <= 'b0;
-      instr_cheri_err_q    <= 'b0;
+      for (int i = 0; i < NUM_REQS; i++) begin
+        errs_outstanding_q[i] <= cheri_instr_exc_t'(0);
+      end
       errl_outstanding_q   <= 'b0;
       erru_outstanding_q   <= 'b0;
       erru2_outstanding_q  <= 'b0;
@@ -361,7 +374,7 @@ module ibex_prefetch_buffer #(
       discard_req_q        <= discard_req_d;
       rdata_outstanding_q  <= rdata_outstanding_s;
       branch_discard_q     <= branch_discard_s;
-      instr_cheri_err_q    <= instr_cheri_err_i;
+      errs_outstanding_q   <= errs_outstanding_s;
       errl_outstanding_q   <= errl_outstanding_s;
       erru_outstanding_q   <= erru_outstanding_s;
       erru2_outstanding_q  <= erru2_outstanding_s;

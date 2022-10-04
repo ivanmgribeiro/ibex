@@ -146,12 +146,12 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   logic              instr_err, instr_intg_err;
 
-  cheri_exc_t        instr_cheri_all_exc;
-  logic              instr_cheri_any_exc;
+  // instruction-specific exceptions
+  cheri_instr_exc_t  instr_cheri_instr_exc;
+
   logic              instr_cheri_len_exc;
   logic              instr_lower_exc;
 
-  cheri_exc_t        cheri_exc_q;
   // whether the next error to come out of the prefetch fifo was a CHERI error
   logic                     err_is_cheri_q;
   // tracks whether there is an error in the fifo.
@@ -182,7 +182,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic       [31:0] fetch_addr;
   logic              fetch_err;
   logic              fetch_err_plus2;
-  logic              fetch_cheri_err;
+  cheri_instr_exc_t  fetch_cheri_err;
   logic              fetch_cheri_len_err;
 
   logic [31:0]       instr_decompressed;
@@ -346,11 +346,9 @@ module ibex_if_stage import ibex_pkg::*; #(
   assign instr_cheri_len_exc = instr_lower_exc & instr_upper_exc_i;
 
   always_comb begin
-    instr_cheri_all_exc                  = instr_cheri_exc_i;
-    // instr_cheri_all_exc.length_violation should be high only if there has definitely been an
-    // exception generated, which only happens when both halves of the fetch were disallowed
-    instr_cheri_all_exc.length_violation = instr_cheri_len_exc;
-    instr_cheri_any_exc                  = |instr_cheri_all_exc;
+    instr_cheri_instr_exc.tag_violation            = instr_cheri_exc_i.tag_violation;
+    instr_cheri_instr_exc.seal_violation           = instr_cheri_exc_i.seal_violation;
+    instr_cheri_instr_exc.permit_execute_violation = instr_cheri_exc_i.permit_execute_violation;
   end
 
   assign instr_err = instr_intg_err | instr_bus_err_i;
@@ -450,7 +448,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         .instr_rvalid_i      ( instr_rvalid_i             ),
         .instr_rdata_i       ( instr_rdata_i[31:0]        ),
         .instr_err_i         ( instr_err                  ),
-        .instr_cheri_err_i         ( instr_cheri_any_exc  ),
+        .instr_cheri_err_i         ( instr_cheri_instr_exc),
         .instr_cheri_lower_err_i   ( instr_lower_exc      ),
         .instr_cheri_upper_err_i   ( instr_upper_exc_i    ),
         .instr_cheri_upper_err_2_i ( instr_upper_exc_2_i  ),
@@ -526,7 +524,7 @@ module ibex_if_stage import ibex_pkg::*; #(
   ibex_compressed_decoder compressed_decoder_i (
     .clk_i          (clk_i),
     .rst_ni         (rst_ni),
-    .valid_i        (fetch_valid & ~fetch_err & ~fetch_cheri_err),
+    .valid_i        (fetch_valid & ~fetch_err & ~(|fetch_cheri_err)),
     .instr_i        (if_instr_rdata),
     .instr_o        (instr_decompressed),
     .is_compressed_o(instr_is_compressed),
@@ -664,16 +662,6 @@ module ibex_if_stage import ibex_pkg::*; #(
         pc_id_o                  <= pc_if_o;
         pcc_id_o                 <= new_pcc;
       end
-    end
-  end
-
-  // Save CHERI instruction exception information
-  // TODO check ResetAll?
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      cheri_exc_q <= cheri_exc_t'(0);
-    end else if (instr_cheri_any_exc) begin
-      cheri_exc_q <= instr_cheri_all_exc;
     end
   end
 
@@ -822,17 +810,20 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign if_instr_rdata = fetch_rdata;
     assign if_instr_addr  = fetch_addr;
     assign if_instr_bus_err = fetch_err;
-    assign if_instr_cheri_err = fetch_cheri_err | fetch_cheri_len_err;
+    assign if_instr_cheri_err = (|fetch_cheri_err) | fetch_cheri_len_err;
     assign fetch_ready = id_in_ready_i & ~stall_dummy_instr;
   end
 
   // CHERI exception output
   always_comb begin
-    // When fetching instructions that are partially allowed by PCC bounds,
-    // the length violation information has to come from the prefetcher
-    instr_cheri_exc_o                  = cheri_exc_q;
-    instr_cheri_exc_o.length_violation = instr_cheri_exc_o.length_violation
-                                       | fetch_cheri_len_err;
+    // Instruction CHERI exceptions are calculated when the request is made,
+    // and go through the prefetch buffer and fetch fifo with the instruction
+    // data. The exception signals are extracted here.
+    instr_cheri_exc_o                          = cheri_exc_t'(0);
+    instr_cheri_exc_o.tag_violation            = fetch_cheri_err.tag_violation;
+    instr_cheri_exc_o.seal_violation           = fetch_cheri_err.seal_violation;
+    instr_cheri_exc_o.permit_execute_violation = fetch_cheri_err.permit_execute_violation;
+    instr_cheri_exc_o.length_violation         = fetch_cheri_len_err;
   end
 
   // The PCC that might be jumped to (depending on whether the pc_set_i signal

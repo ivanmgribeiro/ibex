@@ -310,6 +310,13 @@ package ibex_pkg;
     logic software_defined_violation;
   } cheri_exc_t;
 
+  // instruction-specific exceptions, not including length violation
+  typedef struct packed {
+    logic tag_violation;
+    logic seal_violation;
+    logic permit_execute_violation;
+  } cheri_instr_exc_t;
+
   // TODO perhaps there is a better way of representing these
   parameter int unsigned CheriKindWidth     = 7;
   parameter int unsigned CheriOTypeWidth    = 4;
