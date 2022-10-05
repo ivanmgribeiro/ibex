@@ -118,7 +118,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   output logic                        icache_ecc_error_o,
 
   // jump and branch target
-  input  logic [CheriCapWidth-1:0]    branch_target_ex_i,       // branch/jump target capability or offset
+  input  logic [CheriCapWidth-1:0]    branch_target_cap_ex_i,   // branch/jump target capability
+  input  logic [31:0]                 branch_target_int_ex_i,   // branch/jump target offset
   output logic [31:0]                 pc_set_target_o,          // when PC is set, this will be the
                                                                 // PC that will be jumped to
                                                                 // (used for RVFI)
@@ -278,8 +279,8 @@ module ibex_if_stage import ibex_pkg::*; #(
         jump_pcc_setOffset_cap = CheriAlmightyCap;
       end
       PC_JUMP: begin
-        fetch_offset_n    = branch_is_cap_i ? cheri_target_offset : branch_target_ex_i[31:0];
-        jump_pcc_setOffset_cap = branch_is_cap_i ? branch_target_ex_i : pcc_q;
+        fetch_offset_n    = {branch_target_int_ex_i[31:1], 1'b0};
+        jump_pcc_setOffset_cap = branch_is_cap_i ? branch_target_setKind_o : pcc_q;
       end
       PC_EXC: begin
         fetch_offset_n    = exc_pc;                       // set PC to exception handler
@@ -846,10 +847,6 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic [CheriCapWidth-1:0] new_pcc;
   logic [31:0]              new_pcc_getAddr_o;
 
-  // The offset of the current branch target, used to get the next PC when
-  // a capability jump occurs
-  logic [31:0] cheri_target_offset;
-
   assign new_pcc            = pc_set_i ? jump_pcc : pcc_if_o;
   assign pcc_if_o           = nojump_pcc;
   assign instr_fetch_auth_o = new_pcc;
@@ -857,7 +854,6 @@ module ibex_if_stage import ibex_pkg::*; #(
   // CHERI module instantiations
   module_wrap64_setOffset pcc_setOffset(pcc_q, pc_if_o, {unused_pcc_setOffset_exact, nojump_pcc});
   module_wrap64_setOffset jump_pcc_setOffset(jump_pcc_setOffset_cap, fetch_offset_n, {unused_jump_pcc_setOffset_exact, jump_pcc});
-  module_wrap64_getOffset cheri_target_getOffset (branch_target_ex_i, cheri_target_offset);
   module_wrap64_getAddr   new_pcc_getAddr  (new_pcc, new_pcc_getAddr_o);
   // The base is not changed by modifying the offset, so just use the
   // registered value
@@ -869,6 +865,10 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic [CheriKindWidth-1:0] mepcc_getKind_o;
   module_wrap64_setKind   mepcc_setKind  (scr_mepcc_i, 7'h0F, mepcc_setKind_o);
   module_wrap64_getKind   mepcc_getKind  (scr_mepcc_i, mepcc_getKind_o);
+
+  // used to unseal the capability being jumped to
+  logic [CheriCapWidth-1:0] branch_target_setKind_o;
+  module_wrap64_setKind   target_setKind (branch_target_cap_ex_i, 7'h0F, branch_target_setKind_o);
 
   ////////////////
   // Assertions //

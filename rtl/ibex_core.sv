@@ -223,7 +223,7 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] lsu_addr_last;
 
   // Jump and branch target and decision (EX->IF)
-  logic [CheriCapWidth-1:0] branch_target_ex;
+  logic [31:0]              branch_target_int_ex;
   logic                     branch_decision;
   logic                     branch_is_cap;
   logic [31:0]              if_pc_set_target;
@@ -539,9 +539,10 @@ module ibex_core import ibex_pkg::*; #(
     .icache_ecc_error_o    (icache_ecc_error),
 
     // branch targets
-    .branch_target_ex_i(branch_target_ex),
-    .pc_set_target_o   (if_pc_set_target),
-    .nt_branch_addr_i  (nt_branch_addr),
+    .branch_target_cap_ex_i(cheri_operand_a_ex), // directly from ID stage
+    .branch_target_int_ex_i(branch_target_int_ex),
+    .pc_set_target_o       (if_pc_set_target),
+    .nt_branch_addr_i      (nt_branch_addr),
 
     // CSRs
     .csr_mepc_i      (csr_mepc),  // exception return address
@@ -855,11 +856,11 @@ module ibex_core import ibex_pkg::*; #(
 
     // Outputs
     .alu_adder_result_ex_o(alu_adder_result_ex),  // to LSU
-    .result_ex_o          (result_ex),  // to ID
+    .result_ex_o          (result_ex),            // to ID
 
-    .branch_target_o  (branch_target_ex),  // to IF
-    .branch_decision_o(branch_decision),  // to ID
-    .branch_is_cap_o  (branch_is_cap),
+    .branch_target_int_o(branch_target_int_ex),  // to IF
+    .branch_decision_o  (branch_decision),       // to ID
+    .branch_is_cap_o    (branch_is_cap),
 
     .ex_valid_o(ex_valid)
   );
