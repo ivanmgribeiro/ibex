@@ -849,7 +849,7 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   assign new_pcc            = pc_set_i ? jump_pcc : pcc_if_o;
   assign pcc_if_o           = nojump_pcc;
-  assign instr_fetch_auth_o = new_pcc;
+  assign instr_fetch_auth_o = pc_set_i ? jump_pcc_setOffset_cap : pcc_q;
 
   // CHERI module instantiations
   module_wrap64_setOffset pcc_setOffset(pcc_q, pc_if_o, {unused_pcc_setOffset_exact, nojump_pcc});
