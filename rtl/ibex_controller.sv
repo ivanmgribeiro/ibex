@@ -644,8 +644,7 @@ module ibex_controller #(
           end
         end
 
-        // CHERI jumps can cause exceptions; in this case, don't jump
-        if ((branch_set_i || jump_set_i) & ~cheri_exc) begin
+        if (branch_set_i || jump_set_i) begin
           // Only set the PC if the branch predictor hasn't already done the branch for us
           pc_set_o       = BranchPredictor ? ~instr_bp_taken_i : 1'b1;
 
