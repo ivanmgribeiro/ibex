@@ -353,6 +353,13 @@ module ibex_id_stage #(
   logic [31:0] alu_operand_a;
   logic [31:0] alu_operand_b;
 
+  // CHERI module inputs/outputs
+  logic [31:0]                rf_wdata_int_from_cap;
+  logic [CheriPermsWidth-1:0] pcc_getPerms_o;
+  logic                       pcc_has_asr;
+  logic                       pcc_getFlags_o;
+  logic [31:0]                auth_getAddr_o;
+
   /////////////
   // LSU Mux //
   /////////////
@@ -1276,21 +1283,16 @@ module ibex_id_stage #(
 
   // When the CHERI ALU writes a capability, we want to extract the address
   // (ie the integer value) for RVFI
-  logic [31:0] rf_wdata_int_from_cap;
   module_wrap64_getAddr rf_wdata_getAddr (cheri_result_ex_i, rf_wdata_int_from_cap);
 
   // PCC permissions
-  logic [CheriPermsWidth-1:0] pcc_getPerms_o;
-  logic                       pcc_has_asr;
   module_wrap64_getPerms pcc_getPerms (pcc_id_i, pcc_getPerms_o);
   assign pcc_has_asr = pcc_getPerms_o[PermitAccessSysReg];
 
   // PCC flag
-  logic pcc_getFlags_o;
   module_wrap64_getFlags pcc_getFlags (pcc_id_i, pcc_getFlags_o);
 
   // memory authorizing capability address
-  logic [31:0] auth_getAddr_o;
   module_wrap64_getAddr auth_getAddr (lsu_mem_auth_cap_o, auth_getAddr_o);
 
   //////////

@@ -256,10 +256,13 @@ module ibex_cs_registers #(
   logic [CheriCapWidth-1:0] getOffset_cap_i;
   logic [31:0]              getOffset_o;
 
-  logic [CheriCapWidth-1:0] isSealed_cap_i;
-  logic                     isSealed_o;
+  logic [CheriCapWidth-1:0]  isSealed_cap_i;
+  logic [CheriKindWidth-1:0] getKind_o;      //intermediate value
+  logic                      isSealed_o;
   /* verilator lint_on IMPERFECTSCH */
   /* verilator lint_on UNOPTFLAT */
+  logic [CheriPermsWidth-1:0] pcc_perms;
+  logic                       pcc_has_asr;
 
   // CSRs
   priv_lvl_e   priv_lvl_q, priv_lvl_d;
@@ -1932,14 +1935,11 @@ module ibex_cs_registers #(
   // need to do some extra work once we get the output of getKind to see
   // whether the capability was sealed
   // TODO replace hardwired size with parameter
-  logic [CheriKindWidth-1:0] getKind_o;
   module_wrap64_getKind module_getKind (
     .wrap64_getKind_cap (isSealed_cap_i),
     .wrap64_getKind     (getKind_o));
   assign isSealed_o = getKind_o[CheriKindWidth-1:CheriOTypeWidth] != '0;
 
-  logic [CheriPermsWidth-1:0] pcc_perms;
-  logic pcc_has_asr;
   module_wrap64_getPerms module_getPerms (
     .wrap64_getPerms_cap (pcc_id_i),
     .wrap64_getPerms     (pcc_perms));

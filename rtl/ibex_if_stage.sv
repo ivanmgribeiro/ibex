@@ -224,6 +224,33 @@ module ibex_if_stage import ibex_pkg::*; #(
 
   logic              unused_pcc_setOffset_exact, unused_jump_pcc_setOffset_exact;
 
+  // The PCC that might be jumped to (depending on whether the pc_set_i signal
+  // is high this cycle)
+  logic [CheriCapWidth-1:0] jump_pcc;
+  logic [CheriCapWidth-1:0] jump_pcc_setOffset_cap;
+  logic [31:0]              jump_pcc_newOffset;
+
+  // The PCC assuming no jump (ie the PCC of the instruction being returned by
+  // the prefetcher/cache this cycle)
+  logic [CheriCapWidth-1:0] nojump_pcc;
+  logic [31:0]              nojump_pcc_getBase_o;
+
+  // The new PCC (already muxed between continuing with current PCC or using
+  // the calculated jump PCC)
+  // On jump, this is the PCC of the instruction that is being requested from
+  // memory.
+  // When not jumping, this is the PCC of the instruction that is being
+  // returned by the prefetcher/cache.
+  logic [CheriCapWidth-1:0] new_pcc;
+  logic [31:0]              new_pcc_getAddr_o;
+
+  // used to unseal MEPCC when it is a sentry
+  logic [ CheriCapWidth-1:0] mepcc_setKind_o;
+  logic [CheriKindWidth-1:0] mepcc_getKind_o;
+
+  // used to unseal the capability being jumped to
+  logic [CheriCapWidth-1:0] branch_target_setKind_o;
+
   assign unused_boot_addr = boot_addr_i[7:0];
   assign unused_csr_mtvec = csr_mtvec_i[7:0];
 
@@ -827,47 +854,26 @@ module ibex_if_stage import ibex_pkg::*; #(
     instr_cheri_exc_o.length_violation         = fetch_cheri_len_err;
   end
 
-  // The PCC that might be jumped to (depending on whether the pc_set_i signal
-  // is high this cycle)
-  logic [CheriCapWidth-1:0] jump_pcc;
-  logic [CheriCapWidth-1:0] jump_pcc_setOffset_cap;
-  logic [31:0]              jump_pcc_newOffset;
-
-  // The PCC assuming no jump (ie the PCC of the instruction being returned by
-  // the prefetcher/cache this cycle)
-  logic [CheriCapWidth-1:0] nojump_pcc;
-  logic [31:0]              nojump_pcc_getBase_o;
-
-  // The new PCC (already muxed between continuing with current PCC or using
-  // the calculated jump PCC)
-  // On jump, this is the PCC of the instruction that is being requested from
-  // memory.
-  // When not jumping, this is the PCC of the instruction that is being
-  // returned by the prefetcher/cache.
-  logic [CheriCapWidth-1:0] new_pcc;
-  logic [31:0]              new_pcc_getAddr_o;
-
   assign new_pcc            = pc_set_i ? jump_pcc : pcc_if_o;
   assign pcc_if_o           = nojump_pcc;
   assign instr_fetch_auth_o = pc_set_i ? jump_pcc_setOffset_cap : pcc_q;
 
   // CHERI module instantiations
+  // set the offsets of the potential new PCCs
   module_wrap64_setOffset pcc_setOffset(pcc_q, pc_if_o, {unused_pcc_setOffset_exact, nojump_pcc});
   module_wrap64_setOffset jump_pcc_setOffset(jump_pcc_setOffset_cap, fetch_offset_n, {unused_jump_pcc_setOffset_exact, jump_pcc});
+
+  // the address of the new PCC, used for fetching
   module_wrap64_getAddr   new_pcc_getAddr  (new_pcc, new_pcc_getAddr_o);
+
   // The base is not changed by modifying the offset, so just use the
   // registered value
   module_wrap64_getBase   pcc_getBase (pcc_q, nojump_pcc_getBase_o);
 
-
-  // used to unseal MEPCC when it is a sentry
-  logic [CheriCapWidth-1:0] mepcc_setKind_o;
-  logic [CheriKindWidth-1:0] mepcc_getKind_o;
+  // On jumps and exceptions, unsealed versions of the target and of MEPCC are
+  // needed.
   module_wrap64_setKind   mepcc_setKind  (scr_mepcc_i, 7'h0F, mepcc_setKind_o);
   module_wrap64_getKind   mepcc_getKind  (scr_mepcc_i, mepcc_getKind_o);
-
-  // used to unseal the capability being jumped to
-  logic [CheriCapWidth-1:0] branch_target_setKind_o;
   module_wrap64_setKind   target_setKind (branch_target_cap_ex_i, 7'h0F, branch_target_setKind_o);
 
   ////////////////
