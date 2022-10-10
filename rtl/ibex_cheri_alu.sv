@@ -226,13 +226,13 @@ module ibex_cheri_alu #(
             end
 
             C_SET_BOUNDS: begin
-              a_setBounds_i = operand_b_int;
+              a_setBounds_i = b_getAddr_o;
 
               result_o         = a_setBounds_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
               alu_operand_a_o = a_getAddr_o;
-              alu_operand_b_o = operand_b_int;
+              alu_operand_b_o = b_getAddr_o;
               alu_operator_o  = ALU_ADD;
 
               exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
@@ -246,13 +246,13 @@ module ibex_cheri_alu #(
             end
 
             C_SET_BOUNDS_EXACT: begin
-              a_setBounds_i = operand_b_int;
+              a_setBounds_i = b_getAddr_o;
 
               result_o         = a_setBounds_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
 
               alu_operand_a_o = a_getAddr_o;
-              alu_operand_b_o = operand_b_int;
+              alu_operand_b_o = b_getAddr_o;
               alu_operator_o  = ALU_ADD;
 
               exceptions_a_o.tag_violation            = exceptions_a.tag_violation;
@@ -313,7 +313,7 @@ module ibex_cheri_alu #(
             end
 
             C_AND_PERM: begin
-              a_setPerms_i = a_getPerms_o & operand_b_i[PermsWidth-1:0];
+              a_setPerms_i = a_getPerms_o & b_getAddr_o[PermsWidth-1:0];
 
               result_o         = a_setPerms_o;
               wrote_capability = 1'b1;
@@ -327,7 +327,7 @@ module ibex_cheri_alu #(
             end
 
             C_SET_FLAGS: begin
-              a_setFlags_i = operand_b_i[FlagWidth-1:0];
+              a_setFlags_i = b_getAddr_o[FlagWidth-1:0];
 
               result_o         = a_setFlags_o;
               wrote_capability = 1'b1;
@@ -340,7 +340,7 @@ module ibex_cheri_alu #(
             end
 
             C_SET_OFFSET: begin
-              a_setOffset_i = operand_b_int;
+              a_setOffset_i = b_getAddr_o;
 
               result_o         = a_setOffset_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
@@ -353,7 +353,7 @@ module ibex_cheri_alu #(
             end
 
             C_SET_ADDR: begin
-              a_setAddr_i = operand_b_i[IntWidth-1:0];
+              a_setAddr_i = b_getAddr_o;
 
               result_o         = a_setAddr_o[CheriCapWidth-1:0];
               wrote_capability = 1'b1;
@@ -366,7 +366,7 @@ module ibex_cheri_alu #(
             end
 
             C_INC_OFFSET: begin
-              a_incOffset_i = operand_b_int;
+              a_incOffset_i = b_getAddr_o;
 
               result_o                  = a_incOffset_o[CheriCapWidth-1:0];
               // only preserve the tag if the result was "exact"
@@ -394,14 +394,14 @@ module ibex_cheri_alu #(
             end
 
             C_FROM_PTR: begin
-              a_setOffset_i = operand_b_int;
+              a_setOffset_i = b_getAddr_o;
 
-              wrote_capability = operand_b_i != '0;
-              result_o         = operand_b_int == '0 ? '0
-                                                     : a_setOffset_o[CheriCapWidth-1:0];
+              wrote_capability = b_getAddr_o != '0;
+              result_o         = b_getAddr_o == '0 ? '0
+                                                   : a_setOffset_o[CheriCapWidth-1:0];
 
-              exceptions_a_o.tag_violation  = operand_b_i != 0 && exceptions_a.tag_violation;
-              exceptions_a_o.seal_violation = operand_b_i != 0 && exceptions_a.seal_violation;
+              exceptions_a_o.tag_violation  = b_getAddr_o != 0 && exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation = b_getAddr_o != 0 && exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("cfromptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -715,14 +715,14 @@ module ibex_cheri_alu #(
                 end
 
                 C_ROUND_REP_LEN: begin
-                  a_getRepLen_i = operand_a_i[IntWidth-1:0];
+                  a_getRepLen_i = a_getAddr_o;
 
                   result_o[IntWidth-1:0] = a_getRepLen_o;
                   wrote_capability       = 1'b0;
                 end
 
                 C_REP_ALIGN_MASK: begin
-                  a_getRepAlignMask_i    = operand_a_i[IntWidth-1:0];
+                  a_getRepAlignMask_i    = a_getAddr_o;
 
                   result_o[IntWidth-1:0] = a_getRepAlignMask_o;
                   wrote_capability       = 1'b0;

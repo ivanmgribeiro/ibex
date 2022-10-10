@@ -465,7 +465,6 @@ module ibex_id_stage #(
   always_comb begin
     unique case (cheri_op_a_mux_sel)
       CHERI_OP_A_REG_CAP: cheri_operand_a_o = rf_rdata_a_cap_fwd;
-      CHERI_OP_A_REG_NUM: cheri_operand_a_o = {{(CheriCapWidth-32){1'b0}}, rf_rdata_a_int_fwd};
       CHERI_OP_A_REG_DDC: cheri_operand_a_o = rf_raddr_a_o == '0 ? scr_ddc_i : rf_rdata_a_cap_fwd;
       // TODO need to use PCC here
       CHERI_OP_A_PCC:     cheri_operand_a_o = pcc_id_i;
@@ -494,7 +493,6 @@ module ibex_id_stage #(
     unique case (cheri_op_b_mux_sel)
       CHERI_OP_B_IMM:     cheri_operand_b_o = {{(CheriCapWidth-32){1'b0}}, cheri_imm_b};
       CHERI_OP_B_REG_CAP: cheri_operand_b_o = rf_rdata_b_cap_fwd;
-      CHERI_OP_B_REG_NUM: cheri_operand_b_o = {{(CheriCapWidth-32){1'b0}}, rf_rdata_b_int_fwd};
       CHERI_OP_B_REG_DDC: cheri_operand_b_o = rf_raddr_b_o == '0 ? scr_ddc_i : rf_rdata_b_cap_fwd;
       // TODO need to use PCC here
       CHERI_OP_B_PCC:     cheri_operand_b_o = pcc_id_i;

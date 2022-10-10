@@ -382,8 +382,7 @@ package ibex_pkg;
   } op_a_sel_e;
 
   // CHERI Operand A selection
-  typedef enum logic [2:0] {
-    CHERI_OP_A_REG_NUM,
+  typedef enum logic [1:0] {
     CHERI_OP_A_REG_CAP,
     CHERI_OP_A_REG_DDC,
     CHERI_OP_A_PCC,
@@ -403,8 +402,7 @@ package ibex_pkg;
   } op_b_sel_e;
 
   // CHERI Operand B selection
-  typedef enum logic [2:0] {
-    CHERI_OP_B_REG_NUM,
+  typedef enum logic [1:0] {
     CHERI_OP_B_REG_CAP,
     CHERI_OP_B_REG_DDC,
     CHERI_OP_B_PCC,

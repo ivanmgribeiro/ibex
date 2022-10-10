@@ -910,8 +910,8 @@ module ibex_decoder #(
 
     cheri_a_en_o           = 1'b0;
     cheri_b_en_o           = 1'b0;
-    cheri_op_a_mux_sel_o   = CHERI_OP_A_REG_NUM;
-    cheri_op_b_mux_sel_o   = CHERI_OP_B_REG_NUM;
+    cheri_op_a_mux_sel_o   = CHERI_OP_A_REG_CAP;
+    cheri_op_b_mux_sel_o   = CHERI_OP_B_REG_CAP;
     cheri_imm_b_mux_sel_o  = CHERI_IMM_B_I;
     cheri_base_opcode_o    = cheri_base_opcode;
     cheri_threeop_opcode_o = cheri_threeop_opcode;
@@ -1510,7 +1510,7 @@ module ibex_decoder #(
           THREE_OP: begin
             unique case (cheri_threeop_opcode)
               C_SET_BOUNDS, C_SET_BOUNDS_EXACT, C_AND_PERM, C_SET_FLAGS, C_SET_OFFSET, C_SET_ADDR, C_INC_OFFSET: begin
-                cheri_op_b_mux_sel_o = CHERI_OP_B_REG_NUM;
+                cheri_op_b_mux_sel_o = CHERI_OP_B_REG_CAP;
                 cheri_b_en_o         = 1'b1;
               end
 
@@ -1532,7 +1532,7 @@ module ibex_decoder #(
 
               C_FROM_PTR: begin
                 cheri_op_a_mux_sel_o = CHERI_OP_A_REG_DDC;
-                cheri_op_b_mux_sel_o = CHERI_OP_B_REG_NUM;
+                cheri_op_b_mux_sel_o = CHERI_OP_B_REG_CAP;
                 cheri_b_en_o         = 1'b1;
               end
 
@@ -1607,11 +1607,9 @@ module ibex_decoder #(
                     end
                   end
                   C_GET_PERM, C_GET_TYPE, C_GET_BASE, C_GET_LEN, C_GET_TAG, C_GET_SEALED, C_GET_OFFSET,
-                  C_GET_ADDR, C_GET_FLAGS, C_MOVE, C_CLEAR_TAG, CLEAR, C_SEAL_ENTRY: begin
-                    // nothing to do here; values have already been set before
-                  end
+                  C_GET_ADDR, C_GET_FLAGS, C_MOVE, C_CLEAR_TAG, CLEAR, C_SEAL_ENTRY,
                   C_ROUND_REP_LEN, C_REP_ALIGN_MASK: begin
-                    cheri_op_a_mux_sel_o = CHERI_OP_A_REG_NUM;
+                    // nothing to do here; values have already been set before
                   end
                   default: ;
                 endcase
