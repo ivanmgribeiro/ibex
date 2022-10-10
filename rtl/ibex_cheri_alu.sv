@@ -172,6 +172,14 @@ module ibex_cheri_alu #(
   logic [IntWidth-1:0] a_getRepLen_i;
   logic [IntWidth-1:0] a_getRepLen_o;
 
+  logic [IntWidth:0] cmp_gt_a_i, cmp_gt_b_i;
+  logic cmp_gt_res_o;
+  assign cmp_gt_res_o = $unsigned(cmp_gt_a_i) > $unsigned(cmp_gt_b_i);
+
+  logic [IntWidth:0] cmp_lt_a_i, cmp_lt_b_i;
+  logic cmp_lt_res_o;
+  assign cmp_lt_res_o = $unsigned(cmp_lt_a_i) < $unsigned(cmp_lt_b_i);
+
   //////////////////////////
   // CHERI ALU operations //
   //////////////////////////
@@ -185,6 +193,11 @@ module ibex_cheri_alu #(
     alu_operator_o   = ALU_ADD;
     result_o         = '0;
     wrote_capability = '0;
+
+    cmp_lt_a_i = '0;
+    cmp_lt_b_i = '0;
+    cmp_gt_a_i = '0;
+    cmp_gt_b_i = '0;
 
     a_setBounds_i   = '0;
     a_setKind_cap_i = '0;
@@ -207,7 +220,10 @@ module ibex_cheri_alu #(
       // if the base is above the top then the length is 0
       // The API does not explicitly state whether the base can be above the
       // top, or what the behaviour is in that case.
-      exceptions_a_o.length_violation = {1'b0, btalu_result_i[31:1], 1'b0} + 2 > a_getLength_o;
+      cmp_gt_a_i = {1'b0, btalu_result_i[31:1], 1'b0} + 2;
+      cmp_gt_b_i = a_getLength_o;
+      exceptions_a_o.length_violation = cmp_gt_res_o;
+
     end else begin
       case (base_opcode_i)
         THREE_OP: begin
@@ -235,10 +251,13 @@ module ibex_cheri_alu #(
               alu_operand_b_o = b_getAddr_o;
               alu_operator_o  = ALU_ADD;
 
+              cmp_gt_a_i = alu_result_i;
+              cmp_gt_b_i = a_getTop_o;
+
               exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
               exceptions_a_o.seal_violation   = exceptions_a.seal_violation;
               exceptions_a_o.length_violation = exceptions_a.length_violation
-                                               | alu_result_i > a_getTop_o;
+                                               | cmp_gt_res_o;
 
               if (Verbosity) begin
                 $display("csetbounds output: %h   exceptions: %h", result_o, exceptions_a_o);
@@ -255,10 +274,13 @@ module ibex_cheri_alu #(
               alu_operand_b_o = b_getAddr_o;
               alu_operator_o  = ALU_ADD;
 
+              cmp_gt_a_i = alu_result_i;
+              cmp_gt_b_i = a_getTop_o;
+
               exceptions_a_o.tag_violation            = exceptions_a.tag_violation;
               exceptions_a_o.seal_violation           = exceptions_a.seal_violation;
               exceptions_a_o.length_violation         = exceptions_a.length_violation
-                                                      | alu_result_i > a_getTop_o;
+                                                      | cmp_gt_res_o;
               exceptions_a_o.inexact_bounds_violation = ~a_setBounds_o[CheriCapWidth];
 
               if (Verbosity) begin
@@ -273,14 +295,20 @@ module ibex_cheri_alu #(
               result_o         = a_setKind_o;
               wrote_capability = 1'b1;
 
+              cmp_gt_a_i = {1'b0, b_getAddr_o};
+              cmp_gt_b_i = {1'b0, CheriMaxOType};
+
+              cmp_lt_a_i = {1'b0, b_getAddr_o};
+              cmp_lt_b_i = b_getTop_o;
+
               exceptions_a_o.tag_violation  = exceptions_a.tag_violation;
               exceptions_a_o.seal_violation = exceptions_a.seal_violation;
 
               exceptions_b_o.tag_violation         = exceptions_b.tag_violation;
               exceptions_b_o.seal_violation        = exceptions_b.seal_violation;
               exceptions_b_o.length_violation      = exceptions_b.length_violation
-                                                   | ({1'b0, b_getAddr_o} >= b_getTop_o)
-                                                   | (b_getAddr_o > CheriMaxOType);
+                                                   | (~cmp_lt_res_o)
+                                                   | (cmp_gt_res_o);
               exceptions_b_o.permit_seal_violation = exceptions_b.permit_seal_violation;
 
               if (Verbosity) begin
@@ -294,6 +322,9 @@ module ibex_cheri_alu #(
               a_setKind_cap_i                 = a_setPerms_o;
               a_setKind_i                     = {KindWidth{1'b1}};
 
+              cmp_lt_a_i = b_getTop_o;
+              cmp_lt_b_i = {1'b0, b_getAddr_o};
+
               result_o         = a_setKind_o;
               wrote_capability = 1'b1;
 
@@ -305,7 +336,7 @@ module ibex_cheri_alu #(
               exceptions_b_o.type_violation          = b_getAddr_o != {{(IntWidth-OTypeWidth){1'b0}}, a_getOType_o};
               exceptions_b_o.permit_unseal_violation = exceptions_b.permit_unseal_violation;
               exceptions_b_o.length_violation        = exceptions_b.length_violation
-                                                     | {1'b0, b_getAddr_o} >= b_getTop_o;
+                                                     | cmp_lt_res_o;
 
               if (Verbosity) begin
                 $display("cunseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -396,12 +427,17 @@ module ibex_cheri_alu #(
             C_FROM_PTR: begin
               a_setOffset_i = b_getAddr_o;
 
-              wrote_capability = b_getAddr_o != '0;
-              result_o         = b_getAddr_o == '0 ? '0
-                                                   : a_setOffset_o[CheriCapWidth-1:0];
+              // the comparison performed is unsigned, so this tells us
+              // whether the value is not equal to 0
+              cmp_gt_a_i = {1'b0, b_getAddr_o};
+              cmp_gt_b_i = 0;
 
-              exceptions_a_o.tag_violation  = b_getAddr_o != 0 && exceptions_a.tag_violation;
-              exceptions_a_o.seal_violation = b_getAddr_o != 0 && exceptions_a.seal_violation;
+              wrote_capability = cmp_gt_res_o;
+              result_o         = ~cmp_gt_res_o ? '0
+                                               : a_setOffset_o[CheriCapWidth-1:0];
+
+              exceptions_a_o.tag_violation  = cmp_gt_res_o && exceptions_a.tag_violation;
+              exceptions_a_o.seal_violation = cmp_gt_res_o && exceptions_a.seal_violation;
 
               if (Verbosity) begin
                 $display("cfromptr output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -432,10 +468,16 @@ module ibex_cheri_alu #(
               result_o[CheriCapWidth-1] = 1'b1;
               wrote_capability = 1'b1;
 
+              cmp_gt_a_i = b_getTop_o;
+              cmp_gt_b_i = a_getTop_o;
+
+              cmp_lt_a_i = {1'b0, b_getBase_o};
+              cmp_lt_b_i = {1'b0, a_getBase_o};
+
               exceptions_a_o.tag_violation              = exceptions_a.tag_violation;
               exceptions_a_o.seal_violation             = exceptions_a.seal_violation;
-              exceptions_a_o.length_violation           = (b_getBase_o < a_getBase_o)
-                                                        | (b_getTop_o > a_getTop_o);
+              exceptions_a_o.length_violation           = (cmp_lt_res_o)
+                                                        | (cmp_gt_res_o);
               exceptions_a_o.software_defined_violation = (a_getPerms_o & b_getPerms_o) != b_getPerms_o;
 
               // Top is 1 bit longer than base (ie 33 bit when XLEN is 32)
@@ -456,11 +498,14 @@ module ibex_cheri_alu #(
                                                      // sign-extend the otype
                                                      : {{(CheriCapWidth-OTypeWidth){b_getOType_o[OTypeWidth-1]}}, b_getOType_o};
 
+              cmp_lt_a_i = {{(IntWidth+1-OTypeWidth){1'b0}}, b_getOType_o};
+              cmp_lt_b_i = {1'b0, a_getBase_o};
+
               exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
               exceptions_a_o.seal_violation   = exceptions_a.seal_violation;
               // Not the same as a "common" length violation so we can't use the common case
               exceptions_a_o.length_violation = b_has_software_type
-                                              & ({{(IntWidth-OTypeWidth){1'b0}}, b_getOType_o} < a_getBase_o
+                                              & (cmp_lt_res_o
                                                 |{{(IntWidth-OTypeWidth+1){1'b0}}, b_getOType_o} >= a_getTop_o);
 
               if (Verbosity) begin
@@ -481,10 +526,13 @@ module ibex_cheri_alu #(
 
               exceptions_a_o.tag_violation = exceptions_a.tag_violation;
 
+              cmp_gt_a_i = {1'b0, b_getAddr_o};
+              cmp_gt_b_i = {1'b0, CheriMaxOType};
+
               exceptions_b_o.seal_violation        = a_is_ok && b_is_ok && exceptions_b.seal_violation;
               exceptions_b_o.permit_seal_violation = a_is_ok && b_is_ok && exceptions_b.permit_seal_violation;
               exceptions_b_o.length_violation      = a_is_ok && b_is_ok && (exceptions_b.length_violation
-                                                                           |b_getAddr_o > CheriMaxOType);
+                                                                           |cmp_gt_res_o);
 
               if (Verbosity) begin
                 $display("ccseal output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
@@ -492,10 +540,14 @@ module ibex_cheri_alu #(
             end
 
             C_TEST_SUBSET: begin
+              cmp_lt_a_i = {1'b0, b_getBase_o};
+              cmp_lt_b_i = {1'b0, a_getBase_o};
+              cmp_gt_a_i = b_getTop_o;
+              cmp_gt_b_i = a_getTop_o;
               wrote_capability = 1'b0;
               result_o[0]      = a_isValidCap_o != b_isValidCap_o              ? 1'b0
-                               : b_getBase_o < a_getBase_o                     ? 1'b0
-                               : b_getTop_o > a_getTop_o                       ? 1'b0
+                               : cmp_lt_res_o                                  ? 1'b0
+                               : cmp_gt_res_o                                  ? 1'b0
                                : (b_getPerms_o & a_getPerms_o) != b_getPerms_o ? 1'b0
                                : 1'b1;
 
@@ -518,13 +570,16 @@ module ibex_cheri_alu #(
               alu_operand_b_o = instr_first_cycle_i ? 0 : 2;
               alu_operator_o  = ALU_ADD;
 
+              cmp_gt_a_i = alu_result_i;
+              cmp_gt_b_i = a_getLength_o;
+
               exceptions_a_o.tag_violation            =  exceptions_a.tag_violation;
               // capability a SHOULD be sealed
               exceptions_a_o.seal_violation           = ~exceptions_a.seal_violation;
               exceptions_a_o.type_violation           =  a_getKind_o != b_getKind_o;
               exceptions_a_o.permit_cinvoke_violation =  exceptions_a.permit_cinvoke_violation;
               exceptions_a_o.permit_execute_violation =  exceptions_a.permit_execute_violation;
-              exceptions_a_o.length_violation         =  alu_result_i > a_getLength_o;
+              exceptions_a_o.length_violation         =  cmp_gt_res_o;
               exceptions_a_o.unaligned_base_violation =  a_getBase_o[0];
 
               exceptions_b_o.tag_violation            =  exceptions_b.tag_violation;
@@ -671,6 +726,9 @@ module ibex_cheri_alu #(
                     logic [32:0] alu_result_int = 33'h2 + (operand_b_int[31] ? {1'b0, alu_result_i[31:1], 1'b0}
                                                                              : {1'b0, alu_result_i[31:1], 1'b0});
 
+                    cmp_gt_a_i = alu_result_int;
+                    cmp_gt_b_i = a_getLength_o;
+
                     exceptions_a_o.tag_violation            = exceptions_a.tag_violation;
                     // capabilities sealed as Sentries are allowed
                     // if the capability _is_ a sentry, the immediate must be 0 (for cap-mode JALR)
@@ -678,7 +736,7 @@ module ibex_cheri_alu #(
                                                               & a_getKind_o != 7'h1E)
                                                             | (a_getKind_o == 7'h1E & operand_b_int != 0);
                     exceptions_a_o.permit_execute_violation = exceptions_a.permit_execute_violation;
-                    exceptions_a_o.length_violation         = alu_result_int > a_getLength_o;
+                    exceptions_a_o.length_violation         = cmp_gt_res_o;
                     exceptions_a_o.unaligned_base_violation = a_getBase_o[0];
                     // we don't care about trying to throw the last exception since we do support
                     // compressed instructions
@@ -766,10 +824,13 @@ module ibex_cheri_alu #(
           alu_operand_b_o = {{(IntWidth-ImmWidth){1'b0}}, operand_b_int[ImmWidth-1:0]};
           alu_operator_o  = ALU_ADD;
 
+          cmp_gt_a_i = alu_result_i;
+          cmp_gt_b_i = a_getTop_o;
+
           exceptions_a_o.tag_violation    = exceptions_a.tag_violation;
           exceptions_a_o.seal_violation   = exceptions_a.seal_violation;
           exceptions_a_o.length_violation = exceptions_a.length_violation
-                                          | alu_result_i > a_getTop_o;
+                                          | cmp_gt_res_o;
 
           if (Verbosity) begin
             $display("csetboundsimm output: %h   exceptions: %h   exceptions_b: %h", result_o, exceptions_a_o, exceptions_b_o);
