@@ -354,7 +354,6 @@ module ibex_id_stage #(
   logic [31:0] alu_operand_b;
 
   // CHERI module inputs/outputs
-  logic [31:0]                rf_wdata_int_from_cap;
   logic [CheriPermsWidth-1:0] pcc_getPerms_o;
   logic                       pcc_has_asr;
   logic                       pcc_getFlags_o;
@@ -1280,10 +1279,6 @@ module ibex_id_stage #(
   ////////////////////////////////
   // CHERI module instantiation //
   ////////////////////////////////
-
-  // When the CHERI ALU writes a capability, we want to extract the address
-  // (ie the integer value) for RVFI
-  module_wrap64_getAddr rf_wdata_getAddr (cheri_result_ex_i, rf_wdata_int_from_cap);
 
   // PCC permissions
   module_wrap64_getPerms pcc_getPerms (pcc_id_i, pcc_getPerms_o);
