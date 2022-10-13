@@ -102,13 +102,13 @@ module ibex_id_stage #(
   output logic                            cheri_alu_exc_only_o,
 
   // CHERI operands
-  output [CheriCapWidth-1:0]        cheri_operand_a_o,
-  output [CheriCapWidth-1:0]        cheri_operand_b_o,
+  output logic [CheriCapWidth-1:0]  cheri_operand_a_o,
+  output logic [CheriCapWidth-1:0]  cheri_operand_b_o,
 
   // CHERI results
   input  [CheriCapWidth-1:0]        cheri_result_ex_i,
   input  logic [CheriCapWidth-1:0]  scr_rdata_i,
-  input                             cheri_wrote_cap_i,
+  input  logic                      cheri_wrote_cap_i,
 
   // CHERI exceptions
   input  ibex_pkg::cheri_exc_t   cheri_exceptions_a_ex_i,
