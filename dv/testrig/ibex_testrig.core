@@ -19,6 +19,11 @@ parameters:
     paramtype: vlogdefine
     default: true
 
+  TestRIG:
+    datatype: int
+    paramtype: vlogparam
+    default: 1
+
 # TODO
 # parameters:
 targets:
@@ -30,6 +35,7 @@ targets:
     default_tool: verilator
     parameters:
       - RVFI=true
+      - TestRIG
     tools:
       verilator:
         mode: cc

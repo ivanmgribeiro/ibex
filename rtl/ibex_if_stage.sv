@@ -30,7 +30,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   parameter int unsigned MemDataWidth      = MemECC ? 32 + 7 : 32,
   parameter int unsigned CheriCapWidth     = 91,
   parameter bit [CheriCapWidth-1:0] CheriAlmightyCap  = 91'h0,
-  parameter bit [CheriCapWidth-1:0] CheriNullCap      = 91'h0
+  parameter bit [CheriCapWidth-1:0] CheriNullCap      = 91'h0,
+  parameter int          TestRIG           = 0
 ) (
   input  logic                         clk_i,
   input  logic                         rst_ni,
@@ -302,7 +303,11 @@ module ibex_if_stage import ibex_pkg::*; #(
     unique case (pc_mux_internal)
       PC_BOOT: begin
         // TODO TestRIG does not support having an offset of 80 in the reset PC
-        fetch_offset_n    = boot_addr_i;
+        if (TestRIG==1) begin
+            fetch_offset_n    = boot_addr_i;
+        end else begin
+            fetch_offset_n    = {boot_addr_i[31:8], 8'h80};
+        end
         jump_pcc_setOffset_cap = CheriAlmightyCap;
       end
       PC_JUMP: begin
@@ -450,7 +455,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   end else begin : gen_prefetch_buffer
     // prefetch buffer, caches a fixed number of instructions
     ibex_prefetch_buffer #(
-      .ResetAll        (ResetAll)
+      .ResetAll        (ResetAll),
+      .TestRIG         (TestRIG)
     ) prefetch_buffer_i (
         .clk_i               ( clk_i                      ),
         .rst_ni              ( rst_ni                     ),

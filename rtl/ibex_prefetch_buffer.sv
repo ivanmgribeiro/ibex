@@ -10,7 +10,8 @@
  * paths to the instruction cache.
  */
 module ibex_prefetch_buffer #(
-  parameter bit ResetAll        = 1'b0
+  parameter bit ResetAll        = 1'b0,
+  parameter int TestRIG         = 0
 ) (
   input  logic        clk_i,
   input  logic        rst_ni,
@@ -127,7 +128,8 @@ module ibex_prefetch_buffer #(
 
   ibex_fetch_fifo #(
     .NUM_REQS (NUM_REQS),
-    .ResetAll (ResetAll)
+    .ResetAll (ResetAll),
+    .TestRIG  (TestRIG)
   ) fifo_i (
       .clk_i                 ( clk_i             ),
       .rst_ni                ( rst_ni            ),

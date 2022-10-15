@@ -45,7 +45,8 @@ module ibex_core import ibex_pkg::*; #(
   parameter bit          MemECC            = 1'b0,
   parameter int unsigned MemDataWidth      = MemECC ? 32 + 7 : 33,
   parameter int unsigned DmHaltAddr        = 32'h1A110800,
-  parameter int unsigned DmExceptionAddr   = 32'h1A110808
+  parameter int unsigned DmExceptionAddr   = 32'h1A110808,
+  parameter int          TestRIG           = 0
 ) (
   // Clock and Reset
   input  logic                         clk_i,
@@ -462,7 +463,8 @@ module ibex_core import ibex_pkg::*; #(
     .MemDataWidth     (MemDataWidth),
     .CheriCapWidth    (CheriCapWidth),
     .CheriAlmightyCap (CheriAlmightyCap),
-    .CheriNullCap     (CheriNullCap)
+    .CheriNullCap     (CheriNullCap),
+    .TestRIG          (TestRIG)
   ) if_stage_i (
     .clk_i (clk_i),
     .rst_ni(rst_ni),
