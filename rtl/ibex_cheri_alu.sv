@@ -1,3 +1,7 @@
+// Copyright lowRISC contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 module ibex_cheri_alu #(
   parameter int unsigned CheriCapWidth = 91,
   parameter int unsigned IntWidth = 32
