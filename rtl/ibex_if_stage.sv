@@ -274,8 +274,7 @@ module ibex_if_stage import ibex_pkg::*; #(
         exc_pcc = scr_mtcc_i;
       end
       EXC_PC_IRQ: begin
-        //exc_pc  = { csr_mtvec_i[31:8], 1'b0, irq_vec, 2'b00 };
-        exc_pc  = { csr_mtvec_i[31:8], 6'b0, 2'b00 };
+        exc_pc  = { csr_mtvec_i[31:8], 1'b0, irq_vec, 2'b00 };
         exc_pcc = scr_mtcc_i;
       end
       EXC_PC_DBD: begin
