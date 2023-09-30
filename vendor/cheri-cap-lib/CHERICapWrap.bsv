@@ -96,9 +96,9 @@ function `CAPTYPE `W(fromMem) (Tuple2#(Bool, Bit#(CapW)) mem_cap) = fromMem(mem_
 (* noinline *)
 function Tuple2#(Bool, Bit#(CapW)) `W(toMem) (`CAPTYPE cap) = toMem(cap);
 (* noinline *)
-function Bit#(CapAddrW) `W(getRepresentableAlignmentMask) (`CAPTYPE dummy, Bit#(CapAddrW) length) = getRepresentableAlignmentMask(dummy, length);
+function Bit#(CapAddrW) `W(getRepresentableAlignmentMask) (`CAPTYPE dummy, Bit#(CapAddrW) length) = alignmentMask (dummy, length);
 (* noinline *)
-function Bit#(CapAddrW) `W(getRepresentableLength) (`CAPTYPE dummy, Bit#(CapAddrW) length) = getRepresentableLength(dummy, length);
+function Bit#(CapAddrW) `W(getRepresentableLength) (`CAPTYPE dummy, Bit#(CapAddrW) length) = roundLength (dummy, length);
 (* noinline *)
 function Bit#(2) `W(getBaseAlignment) (`CAPTYPE cap) = getBaseAlignment(cap);
 

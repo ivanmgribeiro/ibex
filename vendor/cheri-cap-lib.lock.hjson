@@ -8,7 +8,7 @@
 {
   upstream:
   {
-    url: https://github.com/CTSRD-CHERI/cheri-cap-lib
-    rev: 149733072a79b0fa016603119f5a3f32ab94f8f9
+    url: https://github.com/ivanmgribeiro/cheri-cap-lib
+    rev: 6815eec12f46ecfc71f58c4db735b532688e768d
   }
 }

@@ -1,0 +1,58 @@
+:toc: macro
+:toclevels: 4
+:toc-title:
+:toc-placement!:
+:source-highlighter:
+
+++++
+<br/>
+++++
+
+[discrete]
+= CHERI CAP LIB
+
+++++
+<br/>
+++++
+
+The https://github.com/CTSRD-CHERI/cheri-cap-lib[cheri-cap-lib] repository
+provides an RTL API for CHERI capabilities, as well as a reference
+implementation of it. It aims to serve as a central implementation providing
+various wrappers to avoid the need for multiplicity of implementation efforts.
+This is particularly desirable when considering the verification work already
+spent and the overall tricky nature of the algorithms involved.
+
+The explicit goal of CHERI CAP LIB is to provide a set of relatively low level
+operations to interact with CHERI capabilities, and allow the user to abstract
+away the specifics of the published
+https://www.cl.cam.ac.uk/research/security/ctsrd/pdfs/2019tc-cheri-concentrate.pdf[capability format]
+and its subsequent iterations as much as reasonably possible. Other
+implementations should easily be able to comply with the CHERI CAP LIB API.
+In particular, implementations exploring alterations to the underlying
+capability format will benefit from adhering to this API for easy integration
+with codebases already making use of the exisitng CHERI capability implementation.
+If some genuinely new behaviour is necessary, generalising the CHERI CAP API should
+be considered.
+
+The CHERI CAP LIB API is here to guaranty that subtleties in capability
+manipulations are handled correctly. This means that direct bit manipulation on
+CHERI capabilities bypassing the provided functions are greatly discouraged as
+they will very easily lead to nonsense capabilities. For this reason, the CHERI
+CAP LIB API is more in the style of a set of accessors (java interface / haskell
+typeclass, etc...) than in that of a simple struct-style interface with direct
+field manipulation. Again, this is deliberate and necessary to easily enforce
+well behaved capability manipulations.
+
+Currently, the implementation of the API is in Bluespec System Verilog and
+wrappers are available in Verilog and Blarney.
+
+[discrete]
+== Contents
+
+toc::[]
+
+:sectnums:
+
+== The CHERI CAP LIB API
+
+include::CHERI_CAP_API.adoc[]
